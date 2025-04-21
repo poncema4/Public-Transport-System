@@ -1,13 +1,10 @@
-import json
 import datetime
-import time
-import threading
-import socket
-import random
+import json
 import os
-import math
+import random
+import socket
 
-from common.config import ROUTE_COORDS, MessageType
+from common.config import ROUTE_COORDS, MessageType, UDP_SERVER_PORT, TCP_SERVER_HOST
 
 
 # Logging functionality

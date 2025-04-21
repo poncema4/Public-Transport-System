@@ -26,25 +26,6 @@ class ShuttleClient(Vehicle, CommandExecutor):
         
         # Initialize location to the first stop's coordinates
         self.location = get_coordinates_for_stop(self.route[self.current_stop_index])
-        
-    def start(self):
-        self.logger.log(f"Starting shuttle client {self.vehicle_id}. Logs will be saved to logs/{self.vehicle_id}.txt", also_print=True)
-        
-        if not self.connect_to_server():
-            return
-            
-        # Start command listener thread
-        command_thread = threading.Thread(target=self.listen_for_commands)
-        command_thread.daemon = True
-        command_thread.start()
-        
-        # Start movement simulation
-        try:
-            self.simulate_movement()
-        except KeyboardInterrupt:
-            self.logger.log("Shutting down shuttle client...", also_print=True)
-        finally:
-            self.close()
             
     def simulate_movement(self):
         """Simulate shuttle movement along route"""

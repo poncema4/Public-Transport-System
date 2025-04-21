@@ -23,25 +23,6 @@ class UberClient(Vehicle, CommandExecutor):
         
         # Initialize location to approximate NYU coordinates
         self.location = get_coordinates_for_stop("Near NYU")
-        
-    def start(self):
-        self.logger.log(f"Starting Uber client {self.vehicle_id}. Logs will be saved to logs/{self.vehicle_id}.txt", also_print=True)
-        
-        if not self.connect_to_server():
-            return
-            
-        # Start command listener thread
-        command_thread = threading.Thread(target=self.listen_for_commands)
-        command_thread.daemon = True
-        command_thread.start()
-        
-        # Start movement simulation
-        try:
-            self.simulate_movement()
-        except KeyboardInterrupt:
-            self.logger.log("Shutting down Uber client...", also_print=True)
-        finally:
-            self.close()
             
     def simulate_movement(self):
         """Simulate Uber movement from start to destination"""

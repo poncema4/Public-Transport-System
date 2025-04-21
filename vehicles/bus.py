@@ -10,8 +10,8 @@ class BusClient(Vehicle, CommandExecutor):
         if not vehicle_id:
             # Check how many buses are already running to generate a new ID
             # This is a simplification - in a real system you'd query the server
-            next_number = random.randint(101, 999)
-            vehicle_id = f"B{next_number}"
+            next_number: int = random.randint(101, 999)
+            vehicle_id: str = f"B{next_number}"
             
         super().__init__(vehicle_id, VehicleType.BUS)
         self.route = BUS_ROUTE.copy()
@@ -24,25 +24,6 @@ class BusClient(Vehicle, CommandExecutor):
         
         # Initialize location to the first stop's coordinates
         self.location = get_coordinates_for_stop(self.route[self.current_stop_index])
-        
-    def start(self):
-        print(f"Starting bus client {self.vehicle_id}. Logs will be saved to logs/{self.vehicle_id}.txt")
-        
-        if not self.connect_to_server():
-            return
-            
-        # Start command listener thread
-        command_thread = threading.Thread(target=self.listen_for_commands)
-        command_thread.daemon = True
-        command_thread.start()
-        
-        # Start movement simulation
-        try:
-            self.simulate_movement()
-        except KeyboardInterrupt:
-            self.logger.log("Shutting down bus client...", also_print=True)
-        finally:
-            self.close()
             
     def simulate_movement(self):
         """Simulate bus movement along its route"""

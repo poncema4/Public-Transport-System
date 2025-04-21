@@ -1,13 +1,15 @@
 import json
+import threading
 import time
 import socket
 
 from common.config import *
 from common.patterns import Subject
 from common.utils import get_formatted_coords, Logger, get_current_time_string
+from abc import ABC, abstractmethod
 
 
-class Vehicle(Subject):
+class Vehicle(Subject, ABC):
     def __init__(self, vehicle_id, vehicle_type):
         super().__init__()
         self.vehicle_id = vehicle_id
@@ -18,6 +20,33 @@ class Vehicle(Subject):
         self.location = get_formatted_coords()
         self.logger = Logger(vehicle_id)
         self.server_shutdown_detected = False
+
+    @abstractmethod
+    def simulate_movement(self): pass
+
+    def start(self):
+        vehicle_type: str = "Uber" if self.vehicle_type == "Uber" else self.vehicle_type.lower()
+        self.logger.log(
+            f"Starting {vehicle_type} client {self.vehicle_id}. " +
+            f"Logs will be saved to logs/{self.vehicle_id}.txt",
+            also_print=True
+        )
+
+        if not self.connect_to_server():
+            return
+
+        # Start command listener thread
+        command_thread = threading.Thread(target=self.listen_for_commands)
+        command_thread.daemon = True
+        command_thread.start()
+
+        # Start movement simulation
+        try:
+            self.simulate_movement()
+        except KeyboardInterrupt:
+            self.logger.log(f"Shutting down {vehicle_type} client...", also_print=True)
+        finally:
+            self.close()
 
     def connect_to_server(self):
         retry_count = 0

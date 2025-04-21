@@ -1,10 +1,8 @@
-import socket
-import threading
-import json
-import time
-import random
 import sys
-from utils import *
+
+from base_vehicle import *
+from common.patterns import CommandExecutor
+from common.utils import *
 
 class TrainClient(Vehicle, CommandExecutor):
     def __init__(self, vehicle_id=None):

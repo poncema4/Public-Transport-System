@@ -1,0 +1,2 @@
+[23:31:12] SERVER STARTED at Bryant Park Control Center
+[23:31:30] Vehicle B100 not found in registry

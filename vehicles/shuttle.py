@@ -1,11 +1,8 @@
-import socket
-import threading
-import json
-import time
-import datetime
-import random
 import sys
-from utils import *
+
+from common.patterns import CommandExecutor
+from common.utils import *
+from base_vehicle import *
 
 class ShuttleClient(Vehicle, CommandExecutor):
     def __init__(self, vehicle_id=None):

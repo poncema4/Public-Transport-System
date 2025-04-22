@@ -31,7 +31,7 @@ class RouteVehicle(Vehicle, ABC):
         next_stop = self._route[next_idx]
         self.next_stop = next_stop
 
-        self.logger.log(f"Shuttle at {current}, heading to {next_stop}")
+        self.logger.log(f"{self.vehicle_type} at {current}, heading to {next_stop}")
 
         # Step through progress until arrival
         for progress, pause in self._progress_generator(current, next_stop):

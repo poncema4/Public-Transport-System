@@ -1,11 +1,13 @@
+import os
 import sys
-import time
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
 
+import time
 from common.config import VehicleType, TRAIN_ROUTE, Status, Command
 from common.patterns import CommandExecutor
 from common.utils import *
-from .route_vehicle import RouteVehicle
-
+from vehicles.route_vehicle import RouteVehicle
 
 class TrainClient(RouteVehicle, CommandExecutor):
     def __init__(self, vehicle_id=None):

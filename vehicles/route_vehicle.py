@@ -1,10 +1,12 @@
+import os
+import sys
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
 import time
-
-from .base_vehicle import Vehicle
+from vehicles.base_vehicle import Vehicle
 from abc import ABC, abstractmethod
-
 from common.utils import calculate_realistic_movement, get_coordinates_for_stop, send_udp_beacon
-
 
 class RouteVehicle(Vehicle, ABC):
     def __init__(self, vehicle_id: str, vehicle_type: str, route: list[str], status: str):

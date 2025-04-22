@@ -1,4 +1,3 @@
-
 # Constants
 TCP_SERVER_HOST = "localhost"
 TCP_SERVER_PORT = 5000

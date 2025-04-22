@@ -1,11 +1,13 @@
+import os
+import sys
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
 import datetime
 import json
-import os
 import random
 import socket
-
-from .config import ROUTE_COORDS, MessageType, UDP_SERVER_PORT, TCP_SERVER_HOST
-
+from common.config import ROUTE_COORDS, MessageType, UDP_SERVER_PORT, TCP_SERVER_HOST
 
 # Logging functionality
 class Logger:

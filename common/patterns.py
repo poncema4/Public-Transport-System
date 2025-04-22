@@ -1,4 +1,3 @@
-
 # Observer pattern
 class Observer:
     def update(self, subject, *args, **kwargs):

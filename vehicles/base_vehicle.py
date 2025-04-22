@@ -1,13 +1,16 @@
+import os
+import sys
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
 import json
 import threading
 import time
 import socket
-
 from common.config import *
 from common.patterns import Subject
 from common.utils import get_formatted_coords, Logger, get_current_time_string
 from abc import ABC, abstractmethod
-
 
 class Vehicle(Subject, ABC):
     def __init__(self, vehicle_id, vehicle_type):

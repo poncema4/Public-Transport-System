@@ -4,7 +4,7 @@ import os
 import random
 import socket
 
-from common.config import ROUTE_COORDS, MessageType, UDP_SERVER_PORT, TCP_SERVER_HOST
+from .config import ROUTE_COORDS, MessageType, UDP_SERVER_PORT, TCP_SERVER_HOST
 
 
 # Logging functionality

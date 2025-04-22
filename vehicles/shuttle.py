@@ -2,8 +2,8 @@ import sys
 
 from common.patterns import CommandExecutor
 from common.utils import *
-from base_vehicle import *
-from vehicles.route_vehicle import RouteVehicle
+from .base_vehicle import *
+from .route_vehicle import RouteVehicle
 
 
 class ShuttleClient(RouteVehicle, CommandExecutor):

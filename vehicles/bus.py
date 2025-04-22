@@ -4,7 +4,7 @@ import time
 from common.config import VehicleType, BUS_ROUTE, Status, Command
 from common.patterns import CommandExecutor
 from common.utils import *
-from vehicles.route_vehicle import RouteVehicle
+from .route_vehicle import RouteVehicle
 
 
 class BusClient(RouteVehicle, CommandExecutor):

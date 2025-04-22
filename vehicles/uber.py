@@ -1,6 +1,6 @@
 import sys
 
-from base_vehicle import *
+from .base_vehicle import *
 from common.patterns import CommandExecutor
 from common.utils import *
 

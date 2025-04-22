@@ -1,6 +1,6 @@
 import time
 
-from base_vehicle import Vehicle
+from .base_vehicle import Vehicle
 from abc import ABC, abstractmethod
 
 from common.utils import calculate_realistic_movement, get_coordinates_for_stop, send_udp_beacon

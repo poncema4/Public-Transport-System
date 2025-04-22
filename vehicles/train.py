@@ -1,125 +1,66 @@
 import sys
+import time
 
-from base_vehicle import *
+from common.config import VehicleType, TRAIN_ROUTE, Status, Command
 from common.patterns import CommandExecutor
 from common.utils import *
+from vehicles.route_vehicle import RouteVehicle
 
-class TrainClient(Vehicle, CommandExecutor):
+
+class TrainClient(RouteVehicle, CommandExecutor):
     def __init__(self, vehicle_id=None):
         # If no vehicle_id is provided, generate one
         if not vehicle_id:
             next_number = random.randint(1, 99)
             vehicle_id = f"T{next_number}"
             
-        super().__init__(vehicle_id, VehicleType.TRAIN)
-        self.route = TRAIN_ROUTE.copy()
-        self.current_stop_index = 0
-        self.next_stop = self.route[1] if len(self.route) > 1 else None
-        self.status = Status.ON_TIME
-        self.eta = random.randint(2, 8)  # ETA in minutes
-        self.is_delayed = False
-        self.delay_until = 0
-        self.is_shutdown = False
+        super().__init__(vehicle_id, VehicleType.TRAIN, TRAIN_ROUTE.copy(), Status.ON_TIME)
+        self.eta: int = random.randint(2, 8)  # ETA in minutes
+        self.is_shutdown: bool = False
+        self.__standby_reported: bool = False
         
         # Initialize location to the first stop's coordinates
-        self.location = get_coordinates_for_stop(self.route[self.current_stop_index])
-            
-    def simulate_movement(self):
-        """Simulate train movement between stations"""
-        # Track progress between stops (0-100%)
-        progress_to_next_stop = 0
-        
-        while self.running:
-            # Check if server connection is lost and reconnection failed
-            if self.server_shutdown_detected and not self.tcp_socket:
-                self.logger.log("Lost connection to server and reconnection failed. Shutting down.", also_print=True)
+        self.location: tuple[float, float] = get_coordinates_for_stop(self._route[self._current_stop_index])
+
+    #region RouteVehicle Overrides
+    def _in_passive_mode(self) -> bool:
+        return self.is_shutdown
+
+    def _simulate_passive(self):
+        # Only send one status at the start of standby
+        if not self.__standby_reported:
+            self.send_status_update()
+            self.__standby_reported = True
+        self.logger.log(f"Train is in standby mode", also_print=True)
+        time.sleep(5)
+
+    def _progress_generator(self, current_stop, next_stop):
+        travel_time: float  = 15.0
+        start: float = time.time()
+        while True:
+            elapsed = time.time() - start
+            pct = min(100.0, (elapsed / travel_time) * 100.0)
+            # recalc ETA for train
+            self.eta = max(1, int(8 * (1 - pct / 100)))
+            yield pct, 5
+            if pct >= 100.0:
                 break
-                
-            # Check if train is shut down
-            if self.is_shutdown:
-                # When shut down, send a status update to show we're in standby
-                if progress_to_next_stop == 0:
-                    self.send_status_update()
-                self.logger.log(f"Train is in standby mode", also_print=True)
-                time.sleep(5)  # Check every 5 seconds if shutdown has been lifted
-                continue
-                
-            # Check if train is delayed
-            current_time = time.time()
-            if self.is_delayed and current_time < self.delay_until:
-                # Train is delayed, just wait without sending constant updates
-                time.sleep(1)
-                continue
-                
-            if self.is_delayed and current_time >= self.delay_until:
-                # Delay period is over
-                self.is_delayed = False
-                self.logger.log(f"Delay period over, resuming normal operation")
-                
-            # Send TCP status update
-            if progress_to_next_stop == 0:
-                self.send_status_update()
-                
-                # Notify observers of arrival (part of Observer pattern)
-                self.notify_observers("ARRIVAL", f"Train {self.vehicle_id} arrived at {self.route[self.current_stop_index]}")
-                
-                self.logger.log(f"Train arrived at {self.route[self.current_stop_index]}", also_print=True)
-            
-            # Get current and next stop coordinates
-            current_stop = self.route[self.current_stop_index]
-            next_stop_index = (self.current_stop_index + 1) % len(self.route)
-            next_stop = self.route[next_stop_index]
-            
-            # Simulate travel time between stations
-            # For demo purposes, we'll use 15 seconds instead of several minutes
-            travel_time = 15  # seconds
-            travel_start = time.time()
-            
-            # During travel, send UDP updates at intervals
-            while time.time() - travel_start < travel_time and self.running and not self.is_shutdown:
-                # Update progress towards next stop
-                elapsed_ratio = (time.time() - travel_start) / travel_time
-                progress_to_next_stop = min(100, elapsed_ratio * 100)
-                
-                # Update simulated location based on progress between stops
-                current_coords = get_coordinates_for_stop(current_stop)
-                self.location = calculate_realistic_movement(
-                    current_coords, 
-                    next_stop, 
-                    progress_to_next_stop
-                )
-                
-                lat, long = self.location
-                
-                # Send UDP beacon with current location
-                send_udp_beacon(
-                    self.vehicle_id,
-                    self.vehicle_type,
-                    self.status,
-                    {"lat": lat, "long": long},
-                    next_stop,
-                    self.eta
-                )
-                
-                # Wait a bit between updates
-                time.sleep(5)
-                
-                # Update ETA
-                remaining_ratio = 1 - (progress_to_next_stop / 100)
-                self.eta = max(1, int(8 * remaining_ratio))
-                
-            # Move to next stop if not delayed or shutdown
-            if not self.is_delayed and not self.is_shutdown:
-                # Update position in route
-                self.current_stop_index = next_stop_index
-                self.next_stop = self.route[(next_stop_index + 1) % len(self.route)]
-                
-                # Reset progress for the next leg
-                progress_to_next_stop = 0
-                
-                # Reset ETA for next stop
-                self.eta = random.randint(2, 8)
-                
+
+    def _on_arrival(self, arrived_stop):
+        # Reset standby flag
+        self.__standby_reported = False
+        # Notify observers and log
+        self.notify_observers(
+            "ARRIVAL",
+            f"Train {self.vehicle_id} arrived at {arrived_stop}"
+        )
+        self.logger.log(f"Train {self.vehicle_id} arrived at {arrived_stop}", also_print=True)
+        # Advance next stop and reset ETA
+        self._current_stop_index = (self._current_stop_index + 1) % len(self._route)
+        self._next_stop = self._route[(self._current_stop_index + 1) % len(self._route)]
+        self.eta = random.randint(2, 8)
+    #endregion
+
     def handle_command(self, command_message):
         """Handle commands from the server (part of Command pattern)"""
         command_type = command_message["command"]
@@ -152,23 +93,23 @@ class TrainClient(Vehicle, CommandExecutor):
         """Execute a command (implementation of Command pattern)"""
         if command == Command.DELAY:
             duration = params.get("duration", 30)
-            self.is_delayed = True
-            self.status = Status.DELAYED
-            self.delay_until = time.time() + duration
+            self._is_delayed = True
+            self._status = Status.DELAYED
+            self._delay_until = time.time() + duration
             self.logger.log(f"Train delayed for {duration} seconds")
             
         elif command == Command.SHUTDOWN:
             self.is_shutdown = True
-            self.status = Status.STANDBY
+            self._status = Status.STANDBY
             self.logger.log(f"Train entering standby mode")
             
         elif command == Command.REROUTE:
             # Simulate rerouting by shuffling stops (except first and last)
-            if len(self.route) > 3:
-                middle_stops = self.route[1:-1]
+            if len(self._route) > 3:
+                middle_stops = self._route[1:-1]
                 random.shuffle(middle_stops)
-                self.route = [self.route[0]] + middle_stops + [self.route[-1]]
-                self.logger.log(f"Train rerouted: {' -> '.join(self.route)}")
+                self._route = [self._route[0]] + middle_stops + [self._route[-1]]
+                self.logger.log(f"Train rerouted: {' -> '.join(self._route)}")
             else:
                 self.logger.log(f"Route too short to reroute")
                 
@@ -176,7 +117,7 @@ class TrainClient(Vehicle, CommandExecutor):
             # New: Add support for starting the route again
             if self.is_shutdown:
                 self.is_shutdown = False
-                self.status = Status.ON_TIME
+                self._status = Status.ON_TIME
                 self.logger.log(f"Train resuming route")
 
 if __name__ == "__main__":

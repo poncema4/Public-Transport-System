@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
@@ -14,19 +15,9 @@ class UberClient(Vehicle, CommandExecutor):
             next_number = random.randint(900, 999)
             vehicle_id = f"U{next_number}"
             
-        super().__init__(vehicle_id, VehicleType.UBER)
-        self.start_location = UBER_START
-        self.end_location = UBER_END
-        self.current_location = "Near NYU"  # Text description of location
-        self.status = Status.ACTIVE
-        self.eta = random.randint(5, 15)  # minutes to destination
-        self.progress = 0  # 0-100% of journey complete
-        self.network_dropout_threshold = 50  # Simulate network dropout at 50%
-        self.in_network_dropout = False
-        
-        # Initialize location to approximate NYU coordinates
-        self.location = get_coordinates_for_stop("Near NYU")
-            
+        super().__init__(vehicle_id, VehicleType.UBER, UBER_START, UBER_END, "Near NYU",
+                         random.randint(5, 15), 50)
+
     def simulate_movement(self):
         """Simulate Uber movement from start to destination"""
         # Generate waypoints between start and end

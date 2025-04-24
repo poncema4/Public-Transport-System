@@ -3,6 +3,8 @@ import sys
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
+import sqlite3
+import threading
 import time
 from common.config import VehicleType, BUS_ROUTE, Status, Command
 from common.patterns import CommandExecutor
@@ -11,18 +13,104 @@ from vehicles.route_vehicle import RouteVehicle
 
 class BusClient(RouteVehicle, CommandExecutor):
     def __init__(self, vehicle_id=None):
-        # If no vehicle_id is provided, generate one
         if not vehicle_id:
-            # Check how many buses are already running to generate a new ID
-            # This is a simplification - in a real system you'd query the server
-            next_number: int = random.randint(101, 999)
-            vehicle_id: str = f"B{next_number}"
-            
+            next_number = random.randint(101, 999)
+            vehicle_id = f"B{next_number}"
         super().__init__(vehicle_id, VehicleType.BUS, BUS_ROUTE.copy(), Status.ON_TIME)
-        self.eta = random.randint(1, 5)  # ETA in minutes
-        
-        # Initialize location to the first stop's coordinates
+        self.eta = random.randint(1, 5)
         self.location = get_coordinates_for_stop(self._route[self._current_stop_index])
+
+        # Initialize SQLite database
+        self.db_lock = threading.Lock()
+        self.init_database()
+
+    def init_database(self):
+        """Initialize the SQLite database for this vehicle."""
+        with self.db_lock:
+            conn = sqlite3.connect(f"{self.vehicle_id}.db")
+            cursor = conn.cursor()
+
+            # Create tables
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS location_updates (
+                    update_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    vehicle_id TEXT,
+                    lat REAL,
+                    long REAL,
+                    speed REAL,
+                    timestamp TEXT,
+                    network_status TEXT
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS admin_commands (
+                    command_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    command_type TEXT,
+                    parameters TEXT,
+                    sent_time TEXT,
+                    response_time TEXT,
+                    status TEXT
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS event_logs (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT,
+                    details TEXT,
+                    timestamp TEXT
+                )
+            """)
+            conn.commit()
+            conn.close()
+
+    def log_location_update(self, lat, long, speed, network_status):
+        """Log a location update to the database."""
+        with self.db_lock:
+            conn = sqlite3.connect(f"{self.vehicle_id}.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO location_updates (vehicle_id, lat, long, speed, timestamp, network_status)
+                VALUES (?, ?, ?, ?, datetime('now'), ?)
+            """, (self.vehicle_id, lat, long, speed, network_status))
+            conn.commit()
+            conn.close()
+
+    def log_event(self, event_type, details):
+        """Log an event to the database."""
+        with self.db_lock:
+            conn = sqlite3.connect(f"{self.vehicle_id}.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO event_logs (event_type, details, timestamp)
+                VALUES (?, ?, datetime('now'))
+            """, (event_type, details))
+            conn.commit()
+            conn.close()
+
+    # Example usage in movement simulation
+    def _movement_step(self, last_tcp_timestamp: float) -> float:
+        """Simulate movement and log location updates."""
+        for progress, pause in self._progress_generator(self._route[self._current_stop_index], self._next_stop):
+            if not self.running:
+                break
+
+            # Update location dynamically
+            self.location = calculate_realistic_movement(
+                get_coordinates_for_stop(self._route[self._current_stop_index]),
+                get_coordinates_for_stop(self._next_stop),
+                progress
+            )
+            lat, long = self.location
+            speed = random.uniform(10, 40)  # Realistic speed for a bus (10-40 km/h)
+            network_status = random.choice(["On Time", "Delayed", "Active", "Unknown"])
+
+            # Send real-time update to the server
+            self.send_status_update()
+
+            # Log location update locally
+            self.log_location_update(lat, long, speed, network_status)
+            time.sleep(pause)
+        return last_tcp_timestamp
 
     #region RouteVehicle Overrides
     def _progress_generator(self, current_stop, next_stop):

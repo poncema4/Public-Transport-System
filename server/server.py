@@ -3,6 +3,7 @@ import sys
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
+import sqlite3
 import threading
 import time
 from common.config import TCP_SERVER_PORT, BUFFER_SIZE, Command
@@ -34,21 +35,160 @@ class LogObserver(Observer):
 class TransportServer(Subject):
     def __init__(self):
         super().__init__()
-        self.vehicle_registry = {}  # Maps vehicle_id to client socket
-        self.vehicle_types = {}     # Maps vehicle_id to vehicle type
+        self.vehicle_registry = {}
+        self.vehicle_types = {}
         self.lock = threading.Lock()
         self.running = True
-        
-        # Set up the logger
         self.logger = Logger("server", is_server=True)
-        
-        # Register the log observer
         self.log_observer = LogObserver(self.logger)
         self.register_observer(self.log_observer)
+
+        # Initialize SQLite database
+        self.db_lock = threading.Lock()
+        self.init_database()
+        self.init_routes()
+
+    def init_database(self):
+        """Initialize the main SQLite database."""
+        with self.db_lock:
+            conn = sqlite3.connect("transport_system.db")
+            cursor = conn.cursor()
+
+            # Create vehicles table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS vehicles (
+                    vehicle_id TEXT PRIMARY KEY,
+                    vehicle_type TEXT,
+                    route_id TEXT,
+                    status TEXT,
+                    last_seen TEXT
+                )
+            """)
+
+            # Create routes table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS routes (
+                    route_id TEXT PRIMARY KEY,
+                    origin TEXT,
+                    destination TEXT,
+                    stop_sequence TEXT
+                )
+            """)
+
+            # Create admin_commands table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS admin_commands (
+                    command_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    vehicle_id TEXT,
+                    command_type TEXT,
+                    parameters TEXT,
+                    sent_time TEXT,
+                    response_time TEXT,
+                    status TEXT
+                )
+            """)
+
+            # Create event_logs table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS event_logs (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    vehicle_id TEXT,
+                    event_type TEXT,
+                    details TEXT,
+                    event_time TEXT
+                )
+            """)
+
+            # Create location_updates table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS location_updates (
+                    update_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    vehicle_id TEXT,
+                    latitude REAL,
+                    longitude REAL,
+                    speed REAL,
+                    timestamp TEXT,
+                    network_status TEXT
+                )
+            """)
+
+            conn.commit()
+            conn.close()
+
+    def init_routes(self):
+        """Initialize predefined routes in the database."""
+        with self.db_lock:
+            conn = sqlite3.connect("transport_system.db")
+            cursor = conn.cursor()
+
+            # Predefined routes
+            routes = [
+                ("BUS_ROUTE", "Port Authority Terminal", "Wall Street", "Port Authority Terminal,Times Square,Flatiron,Union Square,Wall Street"),
+                ("TRAIN_ROUTE", "Queens Plaza", "Middle Village", "Queens Plaza,Herald Square,Delancey St,Middle Village"),
+                ("SHUTTLE_ROUTE", "Penn Station", "JFK Airport", "Penn Station,JFK Airport"),
+                ("UBER_ROUTE", "Washington Square", "Columbia University", "Washington Square,Greenwich Village,Union Square,Near Flatiron,Near Bryant Park,Midtown,Columbus Circle,Upper West Side,Near Columbia University")
+            ]
+
+            # Insert routes into the database
+            cursor.executemany("""
+                INSERT OR IGNORE INTO routes (route_id, origin, destination, stop_sequence)
+                VALUES (?, ?, ?, ?)
+            """, routes)
+
+            conn.commit()
+            conn.close()
+
+    def log_admin_command(self, vehicle_id, command_type, parameters, status):
+        """Log an admin command to the database."""
+        with self.db_lock:
+            conn = sqlite3.connect("transport_system.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO admin_commands (vehicle_id, command_type, parameters, sent_time, status)
+                VALUES (?, ?, ?, datetime('now'), ?)
+            """, (vehicle_id, command_type, json.dumps(parameters), status))
+            conn.commit()
+            conn.close()
+
+    def log_location_update(self, vehicle_id, latitude, longitude, speed, network_status):
+        """Log a location update to the database."""
+        with self.db_lock:
+            conn = sqlite3.connect("transport_system.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO location_updates (vehicle_id, latitude, longitude, speed, timestamp, network_status)
+                VALUES (?, ?, ?, ?, datetime('now'), ?)
+            """, (vehicle_id, latitude, longitude, speed, network_status))
+            conn.commit()
+            conn.close()
+
+    def log_event(self, vehicle_id, event_type, details):
+        """Log a system-level or fault event to the database."""
+        with self.db_lock:
+            conn = sqlite3.connect("transport_system.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO event_logs (vehicle_id, event_type, details, event_time)
+                VALUES (?, ?, ?, datetime('now'))
+            """, (vehicle_id, event_type, details))
+            conn.commit()
+            conn.close()
+
+    def update_vehicle_status(self, vehicle_id, status, last_seen):
+        """Update vehicle status in the database."""
+        with self.db_lock:
+            conn = sqlite3.connect("transport_system.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO vehicles (vehicle_id, vehicle_type, route_id, status, last_seen)
+                VALUES (?, ?, ?, ?, ?)
+            """, (vehicle_id, self.vehicle_types.get(vehicle_id, "Unknown"), None, status, last_seen))
+            conn.commit()
+            conn.close()
         
     def start(self):
         print(f"[{get_current_time_string()}] SERVER STARTED at Bryant Park Control Center")
-        print(f"[{get_current_time_string()}] Logs are being saved to the 'logs' directory")
+        print(f"[{get_current_time_string()}] Admin Logs are being saved to transport_system.db")
         
         # Start TCP server for reliable communication
         self.tcp_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -64,11 +204,11 @@ class TransportServer(Subject):
         # Start threads for handling connections
         tcp_thread = threading.Thread(target=self.handle_tcp_connections)
         udp_thread = threading.Thread(target=self.handle_udp_messages)
-        command_thread = threading.Thread(target=self.handle_admin_commands)
+        command_thread = threading.Thread(target=self.handle_admin_commands)  # Admin commands in a separate thread
         
         tcp_thread.daemon = True
         udp_thread.daemon = True
-        command_thread.daemon = True
+        command_thread.daemon = True  # Ensure the thread stops when the main program exits
         
         tcp_thread.start()
         udp_thread.start()
@@ -138,29 +278,24 @@ class TransportServer(Subject):
             self.logger.log(f"Error handling client: {e}", also_print=True)
         finally:
             client_socket.close()
-            
+                
     def process_tcp_message(self, message, vehicle_id):
         message_type = message["type"]
-        
         if message_type == MessageType.STATUS_UPDATE:
             lat = message["location"]["lat"]
             long = message["location"]["long"]
+            speed = message.get("speed", 0.0)
+            network_status = message.get("network_status", "Unknown")
             status = message["status"]
-            self.logger.log(f"[TCP] {vehicle_id} -> Status Update:")
-            self.logger.log(f"Location: ({lat:.4f}, {long:.4f}) | Status: {status}")
-            self.notify_observers("STATUS_UPDATE", f"{vehicle_id}: {status} at ({lat:.4f}, {long:.4f})")
-            
-        elif message_type == MessageType.COMMAND_ACK:
-            command = message["command"]
-            status = message["status"]
-            self.logger.log(f"[ACK] {vehicle_id} -> Acknowledged {command}. Status updated to: {status}")
-            self.notify_observers("COMMAND_ACK", f"{vehicle_id} acknowledged {command}")
-            
-        elif message_type == MessageType.COMMAND_REJECTED:
-            command = message["command"]
-            reason = message["reason"]
-            self.logger.log(f"[REJECTED] {vehicle_id} -> {command} not permitted ({reason})")
-            self.notify_observers("COMMAND_REJECTED", f"{vehicle_id} rejected {command}: {reason}")
+
+            # Log location update
+            self.log_location_update(vehicle_id, lat, long, speed, network_status)
+
+            # Update vehicle status
+            self.update_vehicle_status(vehicle_id, status, get_current_time_string())
+
+            # Log event for status update
+            self.log_event(vehicle_id, "STATUS_UPDATE", f"Location: ({lat}, {long}), Status: {status}")
             
     def handle_udp_messages(self):
         while self.running:
@@ -200,19 +335,24 @@ class TransportServer(Subject):
                 client_socket = self.vehicle_registry[vehicle_id]
                 command = CommandHandler(command_type, params)
                 command_dict = command.to_dict()
-                
+
                 try:
                     client_socket.send(json.dumps(command_dict).encode())
                     self.logger.log(f"[COMMAND] {command_type} issued to {vehicle_id}")
                     if params:
                         self.logger.log(f"Parameters: {params}")
                     self.notify_observers("COMMAND_SENT", f"{command_type} to {vehicle_id}")
+
+                    # Log the command
+                    self.log_admin_command(vehicle_id, command_type, params, "SENT")
                     return True
                 except Exception as e:
                     self.logger.log(f"Error sending command to {vehicle_id}: {e}", also_print=True)
+                    self.log_admin_command(vehicle_id, command_type, params, "FAILED")
                     return False
             else:
                 self.logger.log(f"Vehicle {vehicle_id} not found in registry", also_print=True)
+                self.log_admin_command(vehicle_id, command_type, params, "NOT_FOUND")
                 return False
                 
     def handle_admin_commands(self):

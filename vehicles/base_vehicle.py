@@ -80,7 +80,7 @@ class Vehicle(Subject, ABC):
         vehicle_type: str = "Uber" if self.vehicle_type == "Uber" else self.vehicle_type.lower()
         self.logger.log(
             f"Starting {vehicle_type} client {self.vehicle_id}. " +
-            f"Logs will be saved to logs/{self.vehicle_id}.txt",
+            f"Logs will be saved to {self.vehicle_id}.db",
             also_print=True
         )
 

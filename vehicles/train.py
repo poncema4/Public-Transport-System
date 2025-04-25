@@ -4,8 +4,6 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
 import time
-import sqlite3
-import threading
 from common.config import VehicleType, TRAIN_ROUTE, Status, Command
 from common.patterns import CommandExecutor
 from common.utils import *
@@ -21,73 +19,6 @@ class TrainClient(RouteVehicle, CommandExecutor):
         self.is_shutdown: bool = False
         self.__standby_reported: bool = False
         self.location: tuple[float, float] = get_coordinates_for_stop(self._route[self._current_stop_index])
-
-        # Initialize SQLite database
-        self.db_lock = threading.Lock()
-        self.init_database()
-
-    def init_database(self):
-        """Initialize the SQLite database for this vehicle."""
-        with self.db_lock:
-            conn = sqlite3.connect(f"{self.vehicle_id}.db")
-            cursor = conn.cursor()
-
-            # Create tables
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS location_updates (
-                    update_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    vehicle_id TEXT,
-                    lat REAL,
-                    long REAL,
-                    speed REAL,
-                    timestamp TEXT,
-                    network_status TEXT
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS admin_commands (
-                    command_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    command_type TEXT,
-                    parameters TEXT,
-                    sent_time TEXT,
-                    response_time TEXT,
-                    status TEXT
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS event_logs (
-                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    event_type TEXT,
-                    details TEXT,
-                    timestamp TEXT
-                )
-            """)
-            conn.commit()
-            conn.close()
-
-    def log_location_update(self, lat, long, speed, network_status):
-        """Log a location update to the database."""
-        with self.db_lock:
-            conn = sqlite3.connect(f"{self.vehicle_id}.db")
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO location_updates (vehicle_id, lat, long, speed, timestamp, network_status)
-                VALUES (?, ?, ?, ?, datetime('now'), ?)
-            """, (self.vehicle_id, lat, long, speed, network_status))
-            conn.commit()
-            conn.close()
-
-    def log_event(self, event_type, details):
-        """Log an event to the database."""
-        with self.db_lock:
-            conn = sqlite3.connect(f"{self.vehicle_id}.db")
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO event_logs (event_type, details, timestamp)
-                VALUES (?, ?, datetime('now'))
-            """, (event_type, details))
-            conn.commit()
-            conn.close()
 
     def _movement_step(self, last_tcp_timestamp: float) -> float:
         """Simulate movement and log location updates."""

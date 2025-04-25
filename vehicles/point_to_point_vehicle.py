@@ -26,7 +26,6 @@ class PointToPointVehicle(Vehicle, ABC):
         self._location: tuple[float, float] = get_coordinates_for_stop(self._current_location)
 
     def _movement_step(self, last_tcp_timestamp: float) -> float:
-        update_interval: float = 5.0
         last_tcp_time: float = last_tcp_timestamp
 
         # send initial status

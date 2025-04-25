@@ -1,5 +1,4 @@
 import os
-import random
 import sys
 
 from vehicles.point_to_point_vehicle import PointToPointVehicle
@@ -7,7 +6,6 @@ from vehicles.point_to_point_vehicle import PointToPointVehicle
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
-import sqlite3
 from vehicles.base_vehicle import *
 from common.patterns import CommandExecutor
 from common.utils import *
@@ -20,72 +18,6 @@ class UberClient(PointToPointVehicle, CommandExecutor):
         super().__init__(vehicle_id, VehicleType.UBER, UBER_START, UBER_END, "Near NYU",
                          random.randint(5, 15), 50)
 
-        # Initialize SQLite database
-        self.db_lock = threading.Lock()
-        self.init_database()
-
-    def init_database(self):
-        """Initialize the SQLite database for this vehicle."""
-        with self.db_lock:
-            conn = sqlite3.connect(f"{self.vehicle_id}.db")
-            cursor = conn.cursor()
-
-            # Create tables
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS location_updates (
-                    update_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    vehicle_id TEXT,
-                    lat REAL,
-                    long REAL,
-                    speed REAL,
-                    timestamp TEXT,
-                    network_status TEXT
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS admin_commands (
-                    command_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    command_type TEXT,
-                    parameters TEXT,
-                    sent_time TEXT,
-                    response_time TEXT,
-                    status TEXT
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS event_logs (
-                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    event_type TEXT,
-                    details TEXT,
-                    timestamp TEXT
-                )
-            """)
-            conn.commit()
-            conn.close()
-
-    def log_location_update(self, lat, long, speed, network_status):
-        """Log a location update to the database."""
-        with self.db_lock:
-            conn = sqlite3.connect(f"{self.vehicle_id}.db")
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO location_updates (vehicle_id, lat, long, speed, timestamp, network_status)
-                VALUES (?, ?, ?, ?, datetime('now'), ?)
-            """, (self.vehicle_id, lat, long, speed, network_status))
-            conn.commit()
-            conn.close()
-
-    def log_event(self, event_type, details):
-        """Log an event to the database."""
-        with self.db_lock:
-            conn = sqlite3.connect(f"{self.vehicle_id}.db")
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO event_logs (event_type, details, timestamp)
-                VALUES (?, ?, datetime('now'))
-            """, (event_type, details))
-            conn.commit()
-            conn.close()
 
     #region PointToPointVehicle Overrides
     def _progress_generator(self) -> float:

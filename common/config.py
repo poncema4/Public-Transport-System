@@ -1,5 +1,5 @@
 # Constants
-TCP_SERVER_HOST = "localhost"
+TCP_SERVER_HOST = "localhost" # (If you want to run the server and client on multiple devices, changes this to the local IP address)
 TCP_SERVER_PORT = 5000
 UDP_SERVER_PORT = 5001
 BUFFER_SIZE = 1024

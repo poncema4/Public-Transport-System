@@ -18,7 +18,6 @@ class BusClient(RouteVehicle, CommandExecutor):
         self.eta = random.randint(1, 5)
         self.location = get_coordinates_for_stop(self._route[self._current_stop_index])
 
-    # Example usage in movement simulation
     def _movement_step(self, last_tcp_timestamp: float) -> float:
         """Simulate movement and log location updates."""
         for progress, pause in self._progress_generator(self._route[self._current_stop_index], self._next_stop):
@@ -32,14 +31,14 @@ class BusClient(RouteVehicle, CommandExecutor):
                 progress
             )
             lat, long = self.location
-            speed = random.uniform(10, 40)  # Realistic speed for a bus (10-40 km/h)
-            network_status = random.choice(["On Time", "Delayed", "Active", "Unknown"])
+            network_status = Status.ON_TIME  # Bus is always "On Time"
+            speed = random.uniform(10, 30)  # Simulate speed in km/h
 
             # Send real-time update to the server
             self.send_status_update()
 
             # Log location update locally
-            self.log_location_update(lat, long, speed, network_status)
+            self.log_location_update(lat, long, network_status, speed)
             time.sleep(pause)
         return last_tcp_timestamp
 

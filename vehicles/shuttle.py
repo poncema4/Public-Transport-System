@@ -33,14 +33,15 @@ class ShuttleClient(RouteVehicle, CommandExecutor):
                 progress
             )
             lat, long = self.location
-            speed = random.uniform(5, 25)  # Realistic speed for a shuttle (5-25 km/h)
-            network_status = random.choice(["On Time", "Delayed", "Active", "Unknown"])
+            now = datetime.datetime.now().strftime("%H:%M")
+            network_status = Status.ACTIVE if now >= "08:00" else Status.STANDBY  # Shuttle status based on time
+            speed = random.uniform(20, 50)  # Simulate speed in km/h
 
             # Send real-time update to the server
             self.send_status_update()
 
             # Log location update locally
-            self.log_location_update(lat, long, speed, network_status)
+            self.log_location_update(lat, long, network_status, speed)
             time.sleep(pause)
         return last_tcp_timestamp
 

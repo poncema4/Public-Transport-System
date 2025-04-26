@@ -1,11 +1,9 @@
 import os
 import sys
-
-from vehicles.point_to_point_vehicle import PointToPointVehicle
-
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
+from vehicles.point_to_point_vehicle import PointToPointVehicle
 from vehicles.base_vehicle import *
 from common.patterns import CommandExecutor
 from common.utils import *
@@ -90,20 +88,20 @@ class UberClient(PointToPointVehicle, CommandExecutor):
     def handle_command(self, command_message):
         """Handle commands from the server (part of Command pattern)"""
         command_type = command_message["command"]
-        
+
         # Uber has encapsulated business rules - it doesn't accept most commands
         if command_type == Command.SHUTDOWN:
-            reason = "Cannot shutdown/cancel private ride - encapsulated rules"
+            reason = "Cannot shutdown/cancel private ride"
             self.send_command_rejected(command_type, reason)
-            
+            self.log_event("COMMAND_FAILURE", reason)
         elif command_type == Command.REROUTE:
-            reason = "Cannot reroute private ride - driver autonomy rules"
+            reason = "Cannot reroute private ride"
             self.send_command_rejected(command_type, reason)
-            
+            self.log_event("COMMAND_FAILURE", reason)
         elif command_type == Command.DELAY:
-            reason = "Cannot artificially delay private ride"
+            reason = "Cannot delay the uber ride"
             self.send_command_rejected(command_type, reason)
-            
+            self.log_event("COMMAND_FAILURE", reason)
         else:
             self.send_command_rejected(command_type, "Unknown or unsupported command")
             

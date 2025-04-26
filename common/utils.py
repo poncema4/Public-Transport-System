@@ -12,13 +12,14 @@ from common.config import ROUTE_COORDS, MessageType, UDP_SERVER_PORT, TCP_SERVER
 # Logging functionality
 class Logger:
     def __init__(self, name, is_server=False):
-        # Create logs directory if it doesn't exist
-        if not os.path.exists("../logs"):
-            os.makedirs("../logs")
+        # Create logs directory in the project root if it doesn't exist
+        logs_dir = os.path.join(project_root, "logs")
+        if not os.path.exists(logs_dir):
+            os.makedirs(logs_dir)
             
         self.name = name
         self.is_server = is_server
-        self.log_file = os.path.join("../logs", f"{name}.txt")
+        self.log_file = os.path.join(logs_dir, f"{name}.txt")
         
         # Create or clear the log file
         with open(self.log_file, 'w') as f:

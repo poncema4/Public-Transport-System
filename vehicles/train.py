@@ -33,14 +33,14 @@ class TrainClient(RouteVehicle, CommandExecutor):
                 progress
             )
             lat, long = self.location
-            speed = random.uniform(40, 120)  # Realistic speed for a train (40-120 km/h)
-            network_status = random.choice(["On Time", "Delayed", "Active", "Unknown"])
+            network_status = Status.ON_TIME  # Train is always "On Time"
+            speed = random.uniform(40, 80)  # Simulate speed in km/h
 
             # Send real-time update to the server
             self.send_status_update()
 
             # Log location update locally
-            self.log_location_update(lat, long, speed, network_status)
+            self.log_location_update(lat, long, network_status, speed)
             time.sleep(pause)
         return last_tcp_timestamp
 

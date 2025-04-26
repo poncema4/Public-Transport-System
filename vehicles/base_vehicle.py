@@ -8,6 +8,7 @@ import json
 import threading
 import time
 import socket
+import datetime
 from common.config import *
 from common.patterns import Subject
 from common.utils import get_formatted_coords, Logger, get_current_time_string
@@ -94,7 +95,7 @@ class Vehicle(Subject, ABC):
                     vehicle_id TEXT,
                     lat REAL,
                     long REAL,
-                    speed REAL,
+                    speed REAL, 
                     timestamp TEXT,
                     network_status TEXT
                 )
@@ -120,7 +121,7 @@ class Vehicle(Subject, ABC):
             conn.commit()
             conn.close()
 
-    def log_location_update(self, lat, long, speed, network_status):
+    def log_location_update(self, lat, long, network_status, speed=0.0):
         """Log a location update to the database."""
         with self.db_lock:
             conn = sqlite3.connect(f"{self.vehicle_id}.db")
@@ -275,27 +276,36 @@ class Vehicle(Subject, ABC):
                 self.server_shutdown_detected = True
 
     def send_status_update(self):
+        """Send a status update to the server."""
         if self.tcp_socket:
             lat, long = self.location
+
+            # Determine network status based on vehicle type
+            if self.vehicle_type == VehicleType.BUS or self.vehicle_type == VehicleType.TRAIN:
+                network_status = Status.ON_TIME
+            elif self.vehicle_type == VehicleType.UBER:
+                network_status = "Private"
+            elif self.vehicle_type == VehicleType.SHUTTLE:
+                now = datetime.datetime.now().strftime("%H:%M")
+                network_status = Status.ACTIVE if now >= "08:00" else Status.STANDBY
+            else:
+                network_status = "Unknown"
+
             update = {
                 "type": MessageType.STATUS_UPDATE,
                 "vehicle_id": self.vehicle_id,
                 "vehicle_type": self.vehicle_type,
                 "status": self.status,
                 "location": {"lat": lat, "long": long},
-                "timestamp": get_current_time_string()
+                "timestamp": get_current_time_string(),
+                "network_status": network_status
             }
             try:
                 self.tcp_socket.send(json.dumps(update).encode())
-                self.logger.log(f"[TCP] Sent status update: Location: ({lat:.4f}, {long:.4f}) | Status: {self.status}")
+                self.logger.log(f"[TCP] Sent status update: Location: ({lat:.4f}, {long:.4f}) | Status: {network_status}")
             except Exception as e:
                 self.logger.log(f"Error sending status update: {e}", also_print=True)
                 self.server_shutdown_detected = True
-                # Try to reconnect
-                self.tcp_socket.close()
-                if not self.connect_to_server():
-                    # Reconnection failed after max attempts
-                    self.running = False
 
     def close(self):
         self.running = False

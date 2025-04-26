@@ -57,8 +57,8 @@ class TransportServer(Subject):
             # Create vehicles table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS vehicles (
-                    vehicle_id TEXT PRIMARY KEY,
-                    vehicle_type TEXT,
+                    vehicle_id TEXT PRIMARY KEY,      
+                    vehicle_type TEXT,                 
                     route_id TEXT,
                     status TEXT,
                     last_seen TEXT
@@ -163,7 +163,7 @@ class TransportServer(Subject):
             conn.close()
 
     def log_event(self, vehicle_id, event_type, details):
-        """Log a system-level or fault event to the database."""
+        """Log specific events to the database."""
         with self.db_lock:
             conn = sqlite3.connect("transport_system.db")
             cursor = conn.cursor()
@@ -243,37 +243,43 @@ class TransportServer(Subject):
                 if message["type"] == MessageType.REGISTRATION:
                     vehicle_id = message["vehicle_id"]
                     vehicle_type = message["vehicle_type"]
-                    
+
                     with self.lock:
                         self.vehicle_registry[vehicle_id] = client_socket
                         self.vehicle_types[vehicle_id] = vehicle_type
-                        
+
                     self.logger.log(f"Vehicle CONNECTED: {vehicle_id} ({vehicle_type}) via TCP")
                     self.notify_observers("VEHICLE_CONNECTED", f"{vehicle_id} ({vehicle_type})")
-                    
+
+                    # Log connection event in the event_logs table
+                    self.log_event(vehicle_id, "VEHICLE_CONNECTED", f"{vehicle_id} ({vehicle_type}) connected")
+
                     # Continue handling messages from this client
                     while self.running:
                         try:
                             data = client_socket.recv(BUFFER_SIZE)
                             if not data:
                                 break
-                                
+
                             message = json.loads(data.decode())
                             self.process_tcp_message(message, vehicle_id)
                         except Exception as e:
                             self.logger.log(f"Error receiving message from {vehicle_id}: {e}")
                             break
-                            
+
                     # Client disconnected or error occurred
                     with self.lock:
                         if vehicle_id in self.vehicle_registry:
                             del self.vehicle_registry[vehicle_id]
                         if vehicle_id in self.vehicle_types:
                             del self.vehicle_types[vehicle_id]
-                            
+
                     self.logger.log(f"Vehicle DISCONNECTED: {vehicle_id}")
                     self.notify_observers("VEHICLE_DISCONNECTED", vehicle_id)
-                    
+
+                    # Log disconnection event in the event_logs table
+                    self.log_event(vehicle_id, "VEHICLE_DISCONNECTED", f"{vehicle_id} disconnected")
+
         except Exception as e:
             self.logger.log(f"Error handling client: {e}", also_print=True)
         finally:
@@ -284,19 +290,54 @@ class TransportServer(Subject):
         if message_type == MessageType.STATUS_UPDATE:
             lat = message["location"]["lat"]
             long = message["location"]["long"]
-            speed = message.get("speed", 0.0)
             network_status = message.get("network_status", "Unknown")
             status = message["status"]
 
-            # Log location update
+            # Calculate speed dynamically
+            vehicle_type = self.vehicle_types.get(vehicle_id, "Unknown")
+            progress = message.get("progress", 0.0)  # Progress towards destination (0-100)
+            speed = self.calculate_speed(vehicle_type, progress)
+
+            # Log location update in the location_updates table
             self.log_location_update(vehicle_id, lat, long, speed, network_status)
 
             # Update vehicle status
             self.update_vehicle_status(vehicle_id, status, get_current_time_string())
 
-            # Log event for status update
-            self.log_event(vehicle_id, "STATUS_UPDATE", f"Location: ({lat}, {long}), Status: {status}")
+        elif message_type == MessageType.COMMAND_REJECTED:
+            # Log command rejection in the event_logs table
+            reason = message.get("reason", "Unknown reason")
+            self.log_event(vehicle_id, "COMMAND_FAILURE", reason)
+
+        elif message_type == MessageType.COMMAND_ACK:
+            # Handle command acknowledgment (no logging needed here)
+            pass
             
+    def calculate_speed(self, vehicle_type, progress):
+        """
+        Calculate the speed of the vehicle based on its type and progress.
+        Vehicles slow down as they approach their destination.
+        """
+        if vehicle_type == "Bus":
+            max_speed = 30  # km/h
+            min_speed = 10  # km/h
+        elif vehicle_type == "Train":
+            max_speed = 80  # km/h
+            min_speed = 40  # km/h
+        elif vehicle_type == "Shuttle":
+            max_speed = 50  # km/h
+            min_speed = 20  # km/h
+        elif vehicle_type == "Uber":
+            max_speed = 25  # km/h
+            min_speed = 5   # km/h
+        else:
+            max_speed = 20  # Default max speed
+            min_speed = 5   # Default min speed
+
+        # Speed decreases as progress approaches 100%
+        speed = max_speed - ((max_speed - min_speed) * (progress / 100))
+        return round(speed, 2)
+
     def handle_udp_messages(self):
         while self.running:
             try:

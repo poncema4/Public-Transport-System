@@ -8,7 +8,7 @@ sys.path.append(project_root)
 import time
 from vehicles.base_vehicle import Vehicle
 from abc import ABC, abstractmethod
-from common.utils import calculate_realistic_movement, get_coordinates_for_stop, send_udp_beacon
+from common.utils import calculate_realistic_movement, get_coordinates_for_stop
 
 class RouteVehicle(Vehicle, ABC):
     """
@@ -65,14 +65,7 @@ class RouteVehicle(Vehicle, ABC):
                 progress
             )
             lat, long = self.location
-            send_udp_beacon(
-                self.vehicle_id,
-                self.vehicle_type,
-                self.status,
-                {"lat": lat, "long": long},
-                self.next_stop,
-                getattr(self, "eta", None)
-            )
+            self.send_udp_beacon(lat, long, next_stop=self.next_stop, eta=getattr(self, "eta", None))
             self.logger.log(f"[UDP] Progress: {progress:.1f}% to {next_stop} | Location: ({lat:.4f}, {long:.4f})")
 
             time.sleep(pause)

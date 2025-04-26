@@ -8,7 +8,7 @@ sys.path.append(project_root)
 from base_vehicle import Vehicle
 from abc import ABC, abstractmethod
 from common.config import Status
-from common.utils import get_coordinates_for_stop, send_udp_beacon
+from common.utils import get_coordinates_for_stop
 
 
 class PointToPointVehicle(Vehicle, ABC):
@@ -52,14 +52,7 @@ class PointToPointVehicle(Vehicle, ABC):
             # Perform one progress step
             pause: float = self._progress_generator()
             lat, long = self._location
-            send_udp_beacon(
-                self.vehicle_id,
-                self.vehicle_type,
-                self.status,
-                {"lat": lat, "long": long},
-                None,
-                self._eta
-            )
+            self.send_udp_beacon(lat, long, eta=self._eta)
             self.logger.log(
                 f"[UDP] At {self._current_location} | Progress: {self._progress}% | Location: ({lat:.4f}, {long:.4f}) | ETA: {self._eta} min")
             time.sleep(pause)

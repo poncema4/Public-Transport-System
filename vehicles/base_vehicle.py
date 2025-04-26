@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import sys
+from typing import Optional
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
@@ -12,7 +13,7 @@ import socket
 import datetime
 from common.config import *
 from common.patterns import Subject
-from common.utils import get_formatted_coords, Logger, get_current_time_string
+from common.utils import get_formatted_coords, Logger, get_current_time_string, send_udp_beacon
 from abc import ABC, abstractmethod
 
 
@@ -22,15 +23,16 @@ class Vehicle(Subject, ABC):
     """
     def __init__(self, vehicle_id, vehicle_type):
         super().__init__()
-        self.vehicle_id = vehicle_id
-        self.vehicle_type = vehicle_type
-        self.status = Status.ON_TIME
-        self.tcp_socket = None
-        self.running = True
-        self.location = get_formatted_coords()
-        self.logger = Logger(vehicle_id)
-        self.server_shutdown_detected = False
-        self.db_lock = threading.Lock()
+        self.vehicle_id: str = vehicle_id
+        self.vehicle_type: str = vehicle_type
+        self.status: str = Status.ON_TIME
+        self.tcp_socket: socket = None
+        self.udp_socket: socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.running: bool = True
+        self.location: tuple[float, float] = get_formatted_coords()
+        self.logger: Logger = Logger(vehicle_id)
+        self.server_shutdown_detected: bool = False
+        self.db_lock: threading.Lock = threading.Lock()
         self.init_database()
 
     def simulate_movement(self) -> None:
@@ -77,6 +79,28 @@ class Vehicle(Subject, ABC):
             self.logger.log("Delay period over, resuming normal operation")
         return False
 
+    def send_udp_beacon(self, lat: float, long: float, next_stop: Optional[str] = None,
+                        eta: Optional[int] = None) -> None:
+        message = {
+            "type": MessageType.LOCATION_UPDATE,
+            "vehicle_id": self.vehicle_id,
+            "vehicle_type": self.vehicle_type,
+            "status": self.status,
+            "location": {"lat": lat, "long": long},
+            "timestamp": get_current_time_string()
+        }
+
+        optional_args: list[str] = ["next_stop", "eta"]
+        given_args: list = [next_stop, eta]
+
+        for arg, given in zip(optional_args, given_args):
+            if given:
+                message[arg] = given
+
+        try:
+            self.udp_socket.sendto(json.dumps(message).encode(), (TCP_SERVER_HOST, UDP_SERVER_PORT))
+        except Exception as e:
+            self.logger.log(f"Error sending UDP beacon: {e}", also_print=True)
     # endregion
 
     # region Movement Steps
@@ -423,13 +447,18 @@ class Vehicle(Subject, ABC):
 
     def close(self) -> None:
         """
-        Closes this vehicle client's connection to the server.
+        Gracefully close the vehicle client's network connections and shut down.
         :return: None
         """
         self.running = False
-        if self.tcp_socket:
-            try:
-                self.tcp_socket.close()
-            except:
-                pass
+
+        for sock_name, sock in [("TCP", self.tcp_socket), ("UDP", self.udp_socket)]:
+            if sock:
+                try:
+                    sock.close()
+                    self.logger.log(f"{sock_name} socket closed")
+                except Exception as e:
+                    self.logger.log(f"Error closing {sock_name} socket: {e}")
+
         self.logger.log("Client shutting down", also_print=True)
+

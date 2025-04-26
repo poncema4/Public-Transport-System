@@ -87,14 +87,7 @@ class UberClient(PointToPointVehicle, CommandExecutor):
         self.send_status_update()
 
         lat, lon = self.location
-        send_udp_beacon(
-            self.vehicle_id,
-            self.vehicle_type,
-            self.status,
-            {"lat": lat, "long": lon},
-            None,
-            0
-        )
+        self.send_udp_beacon(lat, lon, eta=0)
         self.running = False
 
     # endregion

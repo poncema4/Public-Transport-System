@@ -4,10 +4,9 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
 import datetime
-import json
 import random
-import socket
-from common.config import ROUTE_COORDS, MessageType, UDP_SERVER_PORT, TCP_SERVER_HOST
+from common.config import ROUTE_COORDS
+
 
 class Logger:
     def __init__(self, name, is_server=False):
@@ -82,28 +81,3 @@ def get_coordinates_for_stop(stop_name):
         return ROUTE_COORDS[stop_name]
     else:
         return (40.7580, -73.9855)
-
-def send_udp_beacon(vehicle_id, vehicle_type, status, location, next_stop=None, eta=None):
-    message = {
-        "type": MessageType.LOCATION_UPDATE,
-        "vehicle_id": vehicle_id,
-        "vehicle_type": vehicle_type,
-        "status": status,
-        "location": location,
-        "timestamp": get_current_time_string()
-    }
-    
-    if next_stop:
-        message["next_stop"] = next_stop
-        
-    if eta:
-        message["eta"] = eta
-        
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(json.dumps(message).encode(), (TCP_SERVER_HOST, UDP_SERVER_PORT))
-    except Exception as e:
-        log_error = f"Error sending UDP beacon: {e}"
-        print(log_error)
-    finally:
-        sock.close()

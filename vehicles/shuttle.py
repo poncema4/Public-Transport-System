@@ -77,14 +77,7 @@ class ShuttleClient(RouteVehicle, CommandExecutor):
             self.send_status_update()
 
         lat, lon = self.location
-        send_udp_beacon(
-            self.vehicle_id,
-            self.vehicle_type,
-            self.status,
-            {"lat": lat, "long": lon},
-            None,
-            None
-        )
+        self.send_udp_beacon(lat, lon)
         self.logger.log(f"[UDP] Passive beacon from {self.vehicle_id}")
         self.logger.log(
             f"Shuttle {self.vehicle_id} | Status: {self.status} | "

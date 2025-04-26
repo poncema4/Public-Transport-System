@@ -107,4 +107,3 @@ def send_udp_beacon(vehicle_id, vehicle_type, status, location, next_stop=None, 
         print(log_error)
     finally:
         sock.close()
-

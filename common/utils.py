@@ -5,6 +5,7 @@ sys.path.append(project_root)
 
 import datetime
 import random
+import re
 from common.config import ROUTE_COORDS
 
 
@@ -81,3 +82,6 @@ def get_coordinates_for_stop(stop_name):
         return ROUTE_COORDS[stop_name]
     else:
         return (40.7580, -73.9855)
+
+def normalize_whitespace(s: str) -> str:
+    return re.sub(r'\s+', ' ', s.strip())

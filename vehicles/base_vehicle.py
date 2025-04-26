@@ -13,7 +13,7 @@ import socket
 import datetime
 from common.config import *
 from common.patterns import Subject
-from common.utils import get_formatted_coords, Logger, get_current_time_string, send_udp_beacon
+from common.utils import get_formatted_coords, Logger, get_current_time_string, normalize_whitespace
 from abc import ABC, abstractmethod
 
 
@@ -210,10 +210,10 @@ class Vehicle(Subject, ABC):
         with self.db_lock:
             conn = sqlite3.connect(f"{self.vehicle_id}.db")
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(normalize_whitespace("""
                            INSERT INTO location_updates (vehicle_id, lat, long, speed, timestamp, network_status)
                            VALUES (?, ?, ?, ?, datetime('now'), ?)
-                           """, (self.vehicle_id, lat, long, speed, network_status))
+                           """), (self.vehicle_id, lat, long, speed, network_status))
             conn.commit()
             conn.close()
 
@@ -227,10 +227,10 @@ class Vehicle(Subject, ABC):
         with self.db_lock:
             conn = sqlite3.connect(f"{self.vehicle_id}.db")
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(normalize_whitespace("""
                            INSERT INTO event_logs (event_type, details, timestamp)
                            VALUES (?, ?, datetime('now'))
-                           """, (event_type, details))
+                           """), (event_type, details))
             conn.commit()
             conn.close()
 

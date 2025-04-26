@@ -12,6 +12,11 @@ from common.utils import get_coordinates_for_stop, send_udp_beacon
 
 
 class PointToPointVehicle(Vehicle, ABC):
+    """
+    Represents a point-to-point vehicle, i.e., a vehicle that moves from one location to another w/o a specific route.
+    Ex: Uber, Lift, Taxi, etc.
+    """
+
     def __init__(self, vehicle_id: str, vehicle_type: str, start_location: str, end_location: str,
                  current_location: str, eta: int, network_dropout_threshold: 50):
         super().__init__(vehicle_id, vehicle_type)
@@ -26,6 +31,11 @@ class PointToPointVehicle(Vehicle, ABC):
         self._location: tuple[float, float] = get_coordinates_for_stop(self._current_location)
 
     def _movement_step(self, last_tcp_timestamp: float) -> float:
+        """
+        Moves the vehicle along its route and sends status updates.
+        :param last_tcp_timestamp: The timestamp of the last TCP message sent.
+        :return: The timestamp after movement.
+        """
         last_tcp_time: float = last_tcp_timestamp
 
         # send initial status
@@ -35,7 +45,7 @@ class PointToPointVehicle(Vehicle, ABC):
         while self.running and self._progress < 100.0:
             now: float = time.time()
             # Send TCP status update relatively infrequently
-            if now - last_tcp_time > 30 or self._progress % 20 == 0: # Every 30 seconds or 20% progress
+            if now - last_tcp_time > 30 or self._progress % 20 == 0:  # Every 30 seconds or 20% progress
                 self.send_status_update()
                 last_tcp_time = now
 
@@ -60,8 +70,16 @@ class PointToPointVehicle(Vehicle, ABC):
 
     @abstractmethod
     def _progress_generator(self) -> float:
+        """
+        Generates progress updates for the vehicle.
+        :return: Pause duration in seconds before the next update.
+        """
         pass
 
     @abstractmethod
-    def _on_completion(self):
+    def _on_completion(self) -> None:
+        """
+        Defines the behavior when the vehicle reaches its destination.
+        :return: None
+        """
         pass

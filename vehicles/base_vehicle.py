@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import sys
+
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
@@ -14,7 +15,11 @@ from common.patterns import Subject
 from common.utils import get_formatted_coords, Logger, get_current_time_string
 from abc import ABC, abstractmethod
 
+
 class Vehicle(Subject, ABC):
+    """
+    Represents a vehicle in the transport system.
+    """
     def __init__(self, vehicle_id, vehicle_type):
         super().__init__()
         self.vehicle_id = vehicle_id
@@ -28,16 +33,24 @@ class Vehicle(Subject, ABC):
         self.db_lock = threading.Lock()
         self.init_database()
 
-    def simulate_movement(self):
-        last_tcp: float  = 0.0
+    def simulate_movement(self) -> None:
+        """
+        Moves this vehicle while running and connected.
+        Allows for child classes to override pre_step, movement_step, and post_step.
+        """
+        last_tcp: float = 0.0
         while self.running and self._check_connection():
             if self._handle_delay(): continue
             self._pre_step()
             last_tcp = self._movement_step(last_tcp)
             self._post_step()
 
-    #region Shared Utilities
+    # region Shared Utilities
     def _check_connection(self) -> bool:
+        """
+        Checks if the vehicle is still connected to the server.
+        :return: True if connected, False otherwise.
+        """
         if not self.server_shutdown_detected and self.tcp_socket:
             return True
         self.logger.log(
@@ -47,34 +60,53 @@ class Vehicle(Subject, ABC):
         return False
 
     def _handle_delay(self) -> bool:
-        now: float  = time.time()
+        """
+        If delayed, simulates a delay period, and if the delay period is over, resumes normal operation.
+        :return: True if still delayed, False otherwise.
+        """
+        now: float = time.time()
         is_delayed: bool = getattr(self, "is_delayed", False)
         delay_until: float = getattr(self, "delay_until", 0.0)
 
         if is_delayed and now < delay_until:
             time.sleep(1)
             return True
-        
+
         if is_delayed:
             self.is_delayed = False
             self.logger.log("Delay period over, resuming normal operation")
         return False
-    #endregion
 
-    #region Movement Steps
-    def _pre_step(self):
+    # endregion
+
+    # region Movement Steps
+    def _pre_step(self) -> None:
+        """
+        Optional override for any pre-movement logic.
+        :return: None
+        """
         pass
 
     @abstractmethod
     def _movement_step(self, last_tcp_timestamp: float) -> float:
+        """
+        Mandatory override for the movement logic.
+        :param last_tcp_timestamp: The timestamp of the last TCP message sent.
+        :return: The timestamp of the last TCP message sent.
+        """
         pass
 
-    def _post_step(self):
+    def _post_step(self) -> None:
+        """
+        Optional override for any post-movement logic.
+        :return: None
+        """
         pass
-    #endregion
 
-    #region Database Methods
-    def init_database(self):
+    # endregion
+
+    # region Database Methods
+    def init_database(self) -> None:
         """Initialize the SQLite database for this vehicle."""
         with self.db_lock:
             conn = sqlite3.connect(f"{self.vehicle_id}.db")
@@ -82,63 +114,109 @@ class Vehicle(Subject, ABC):
 
             # Create tables
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS location_updates (
-                    update_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    vehicle_id TEXT,
-                    lat REAL,
-                    long REAL,
-                    speed REAL, 
-                    timestamp TEXT,
-                    network_status TEXT
-                )
-            """)
+                           CREATE TABLE IF NOT EXISTS location_updates
+                           (
+                               update_id
+                               INTEGER
+                               PRIMARY
+                               KEY
+                               AUTOINCREMENT,
+                               vehicle_id
+                               TEXT,
+                               lat
+                               REAL,
+                               long
+                               REAL,
+                               speed
+                               REAL,
+                               timestamp
+                               TEXT,
+                               network_status
+                               TEXT
+                           )
+                           """)
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS admin_commands (
-                    command_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    command_type TEXT,
-                    parameters TEXT,
-                    sent_time TEXT,
-                    response_time TEXT,
-                    status TEXT
-                )
-            """)
+                           CREATE TABLE IF NOT EXISTS admin_commands
+                           (
+                               command_id
+                               INTEGER
+                               PRIMARY
+                               KEY
+                               AUTOINCREMENT,
+                               command_type
+                               TEXT,
+                               parameters
+                               TEXT,
+                               sent_time
+                               TEXT,
+                               response_time
+                               TEXT,
+                               status
+                               TEXT
+                           )
+                           """)
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS event_logs (
-                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    event_type TEXT,
-                    details TEXT,
-                    timestamp TEXT
-                )
-            """)
+                           CREATE TABLE IF NOT EXISTS event_logs
+                           (
+                               event_id
+                               INTEGER
+                               PRIMARY
+                               KEY
+                               AUTOINCREMENT,
+                               event_type
+                               TEXT,
+                               details
+                               TEXT,
+                               timestamp
+                               TEXT
+                           )
+                           """)
             conn.commit()
             conn.close()
 
-    def log_location_update(self, lat, long, network_status, speed=0.0):
-        """Log a location update to the database."""
+    def log_location_update(self, lat: float, long: float, network_status: str, speed: float = 0.0) -> None:
+        """
+        Log a location update to the database.
+        :param lat: The latitude of the location.
+        :param long: The longitude of the location.
+        :param network_status: String describing the network status of the vehicle.
+        :param speed: Speed of the vehicle in mph.
+        :return: None
+        """
         with self.db_lock:
             conn = sqlite3.connect(f"{self.vehicle_id}.db")
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO location_updates (vehicle_id, lat, long, speed, timestamp, network_status)
-                VALUES (?, ?, ?, ?, datetime('now'), ?)
-            """, (self.vehicle_id, lat, long, speed, network_status))
+                           INSERT INTO location_updates (vehicle_id, lat, long, speed, timestamp, network_status)
+                           VALUES (?, ?, ?, ?, datetime('now'), ?)
+                           """, (self.vehicle_id, lat, long, speed, network_status))
             conn.commit()
             conn.close()
 
-    def log_event(self, event_type, details):
-        """Log an event to the database."""
+    def log_event(self, event_type: str, details: str) -> None:
+        """
+        Log an event to the database.
+        :param event_type: String description of the event.
+        :param details: String description of the event details.
+        :return: None
+        """
         with self.db_lock:
             conn = sqlite3.connect(f"{self.vehicle_id}.db")
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO event_logs (event_type, details, timestamp)
-                VALUES (?, ?, datetime('now'))
-            """, (event_type, details))
+                           INSERT INTO event_logs (event_type, details, timestamp)
+                           VALUES (?, ?, datetime('now'))
+                           """, (event_type, details))
             conn.commit()
             conn.close()
-    #endregion
 
-    def start(self):
+    # endregion
+
+    def start(self) -> None:
+        """
+        Starts this vehicle client. Connects to the server, listens for commands, and simulates movement.
+        :return: None
+        """
         vehicle_type: str = "Uber" if self.vehicle_type == "Uber" else self.vehicle_type.lower()
         self.logger.log(
             f"Starting {vehicle_type} client {self.vehicle_id}. " +
@@ -149,7 +227,7 @@ class Vehicle(Subject, ABC):
         if not self.connect_to_server():
             return
 
-        # Start command listener thread
+        # Start the command listener thread
         command_thread = threading.Thread(target=self.listen_for_commands)
         command_thread.daemon = True
         command_thread.start()
@@ -162,10 +240,14 @@ class Vehicle(Subject, ABC):
         finally:
             self.close()
 
-    def connect_to_server(self):
+    def connect_to_server(self) -> bool:
+        """
+        Attempts to establish a connection to the server.
+        :return: True if a connection was established, False otherwise.
+        """
         retry_count = 0
         max_retries = 5
-
+        # While not timed out and running.
         while retry_count < max_retries and self.running:
             try:
                 self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -187,56 +269,86 @@ class Vehicle(Subject, ABC):
                 wait_time = 2 ** retry_count  # Exponential backoff
                 self.logger.log(f"Connection failed: {e}. Retrying in {wait_time} seconds...", also_print=True)
                 time.sleep(wait_time)
+        # Connection failed.
+        if self.server_shutdown_detected:
+            self.logger.log(
+                f"Server appears to be down. Terminating client after {max_retries} failed reconnection attempts.",
+                also_print=True
+            )
+        else:
+            self.logger.log(
+                f"Failed to connect after {max_retries} attempts. Exiting.",
+                also_print=True
+            )
+        self.running = False
+        return False
 
-        if retry_count >= max_retries:
-            if self.server_shutdown_detected:
-                self.logger.log \
-                    (f"Server appears to be down. Terminating client after {max_retries} failed reconnection attempts.", also_print=True)
-                self.running = False
-            else:
-                self.logger.log(f"Failed to connect after {max_retries} attempts. Exiting.", also_print=True)
-                self.running = False
-            return False
-
-    def listen_for_commands(self):
+    def listen_for_commands(self) -> None:
+        """
+        Listens for commands from the server and handles them accordingly.
+        :return: None
+        """
         while self.running:
             try:
-                if self.tcp_socket:
-                    data = self.tcp_socket.recv(BUFFER_SIZE)
-                    if not data:
-                        # Connection closed by server - try to reconnect
-                        self.server_shutdown_detected = True
-                        self.logger.log(f"Server connection lost. Attempting to reconnect...", also_print=True)
-                        self.tcp_socket.close()
-                        if not self.connect_to_server():
-                            # Reconnection failed after max attempts
-                            break
-                        continue
+                if not self.tcp_socket:
+                    continue
 
+                data = self.tcp_socket.recv(BUFFER_SIZE)
+                if data:
                     message = json.loads(data.decode())
-                    if message["type"] == MessageType.COMMAND:
+                    if message.get("type") == MessageType.COMMAND:
                         self.handle_command(message)
+                    continue
+
+                # If no data, server likely closed the connection
+                self.handle_server_disconnect()
+
             except Exception as e:
                 self.logger.log(f"Error receiving command: {e}", also_print=True)
-                self.server_shutdown_detected = True
-                # Try to reconnect
-                self.logger.log(f"Attempting to reconnect...")
-                if self.connect_to_server():
-                    self.logger.log(f"Reconnected successfully")
-                else:
-                    # If connect_to_server returned False, it means reconnection failed after max attempts
-                    # The method already sets running to False if max retries exceeded
-                    if self.running:
-                        time.sleep(5)  # Wait before next retry attempt
+                self.handle_reconnect()
 
-    def handle_command(self, command_message):
-        command_type = command_message["command"]
+    def handle_server_disconnect(self) -> None:
+        """
+        Handles logic for when the server disconnects from the client.
+        Logs the event, closes the connection, and attempts to reconnect.
+        :return:
+        """
+        self.server_shutdown_detected = True
+        self.logger.log(f"Server connection lost. Attempting to reconnect...", also_print=True)
+        self.tcp_socket.close()
+        if not self.connect_to_server():
+            self.running = False
+
+    def handle_reconnect(self) -> None:
+        """
+        Handles logic for when the client reconnects to the server.
+        Logs the event and attempts to reconnect.
+        :return:
+        """
+        self.server_shutdown_detected = True
+        self.logger.log(f"Attempting to reconnect...", also_print=True)
+        if not self.connect_to_server() and self.running:
+            time.sleep(5)
+
+    def handle_command(self, command_message: dict[str, str]) -> None:
+        """
+        Handles a command received from the server.
+        :param command_message: The message from the server
+        :return: None
+        """
+        command_type: str = command_message["command"]
         self.logger.log(f"Received command: {command_type}")
 
         # Default implementation to be overridden by subclasses
         self.send_command_ack(command_type, "Acknowledged")
 
-    def send_command_ack(self, command_type, message):
+    def send_command_ack(self, command_type: str, message: str) -> None:
+        """
+        Sends a command acknowledgment to the server.
+        :param command_type: The command type that was acknowledged.
+        :param message: The message to send in the acknowledgment.
+        :return: None
+        """
         if self.tcp_socket:
             response = {
                 "type": MessageType.COMMAND_ACK,
@@ -252,7 +364,13 @@ class Vehicle(Subject, ABC):
                 self.logger.log(f"Error sending acknowledgment: {e}", also_print=True)
                 self.server_shutdown_detected = True
 
-    def send_command_rejected(self, command_type, reason):
+    def send_command_rejected(self, command_type: str, reason: str) -> None:
+        """
+        Sends a command rejection to the server.
+        :param command_type: The command type that was rejected.
+        :param reason: The reason for the rejection.
+        :return: None
+        """
         if self.tcp_socket:
             response = {
                 "type": MessageType.COMMAND_REJECTED,
@@ -267,12 +385,15 @@ class Vehicle(Subject, ABC):
                 self.logger.log(f"Error sending rejection: {e}", also_print=True)
                 self.server_shutdown_detected = True
 
-    def send_status_update(self):
-        """Send a status update to the server."""
+    def send_status_update(self) -> None:
+        """
+        Sends a status update to the server.
+        :return: None
+        """
         if self.tcp_socket:
             lat, long = self.location
 
-            # Determine network status based on vehicle type
+            # Determine network status based on the vehicle type
             if self.vehicle_type == VehicleType.BUS or self.vehicle_type == VehicleType.TRAIN:
                 network_status = Status.ON_TIME
             elif self.vehicle_type == VehicleType.UBER:
@@ -283,7 +404,7 @@ class Vehicle(Subject, ABC):
             else:
                 network_status = "Unknown"
 
-            update = {
+            update: dict[str, str | dict[str, str]] = {
                 "type": MessageType.STATUS_UPDATE,
                 "vehicle_id": self.vehicle_id,
                 "vehicle_type": self.vehicle_type,
@@ -294,12 +415,17 @@ class Vehicle(Subject, ABC):
             }
             try:
                 self.tcp_socket.send(json.dumps(update).encode())
-                self.logger.log(f"[TCP] Sent status update: Location: ({lat:.4f}, {long:.4f}) | Status: {network_status}")
+                self.logger.log(
+                    f"[TCP] Sent status update: Location: ({lat:.4f}, {long:.4f}) | Status: {network_status}")
             except Exception as e:
                 self.logger.log(f"Error sending status update: {e}", also_print=True)
                 self.server_shutdown_detected = True
 
-    def close(self):
+    def close(self) -> None:
+        """
+        Closes this vehicle client's connection to the server.
+        :return: None
+        """
         self.running = False
         if self.tcp_socket:
             try:

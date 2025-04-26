@@ -32,6 +32,8 @@ The Public Transport System simulates a transportation network with real-time lo
 
 6. Use the admin console in the server to issue commands or monitor the system.
 
+7. Use sqlite3.exe in the cloned repository to be able to see your databases and tables
+
 ---
 
 ## Design Decisions

@@ -1,0 +1,152 @@
+@startuml public_transport_system
+
+' Define packages
+package "Server" {
+    class TransportServer {
+        - vehicle_registry: dict
+        - vehicle_types: dict
+        - lock: threading.Lock
+        - db_lock: threading.Lock
+        - logger: Logger
+        - running: bool
+        + start(): void
+        + handle_tcp_connections(): void
+        + handle_udp_messages(): void
+        + handle_admin_commands(): void
+        + send_command(vehicle_id: str, command_type: str, params: dict): bool
+        + log_event(vehicle_id: str, event_type: str, details: str): void
+        + log_location_update(vehicle_id: str, latitude: float, longitude: float, speed: float, network_status: str): void
+    }
+
+    class CommandHandler {
+        - command_type: str
+        - params: dict
+        + to_dict(): dict
+    }
+
+    class LogObserver {
+        - logger: Logger
+        + update(subject: Subject, event: str, data: str): void
+    }
+}
+
+package "Vehicles" {
+    abstract class Vehicle {
+        - vehicle_id: str
+        - vehicle_type: str
+        - status: str
+        - tcp_socket: socket
+        - running: bool
+        - location: tuple
+        - logger: Logger
+        - db_lock: threading.Lock
+        + start(): void
+        + connect_to_server(): bool
+        + simulate_movement(): void
+        + log_location_update(lat: float, long: float, network_status: str, speed: float): void
+        + log_event(event_type: str, details: str): void
+        + send_status_update(): void
+        + handle_command(command_message: dict): void
+    }
+
+    class RouteVehicle {
+        - _route: list
+        - _current_stop_index: int
+        - _next_stop: str
+        + _movement_step(last_tcp_timestamp: float): float
+        + _progress_generator(current_stop: str, next_stop: str): generator
+        + _on_arrival(arrived_stop: str): void
+    }
+
+    class PointToPointVehicle {
+        - _start_location: str
+        - _end_location: str
+        - _current_location: str
+        - _eta: int
+        - _progress: float
+        - _network_dropout_threshold: int
+        + _movement_step(last_tcp_timestamp: float): float
+        + _progress_generator(): float
+        + _on_completion(): void
+    }
+
+    class BusClient {
+        + handle_command(command_message: dict): void
+        + execute(command: str, params: dict): void
+    }
+
+    class TrainClient {
+        + handle_command(command_message: dict): void
+        + execute(command: str, params: dict): void
+    }
+
+    class ShuttleClient {
+        + handle_command(command_message: dict): void
+        + execute(command: str, params: dict): void
+    }
+
+    class UberClient {
+        + handle_command(command_message: dict): void
+        + execute(command: str, params: dict): void
+    }
+}
+
+package "Common" {
+    class Logger {
+        - name: str
+        - is_server: bool
+        + log(message: str, also_print: bool): void
+    }
+
+    class Utils {
+        + get_current_time_string(): str
+        + calculate_realistic_movement(current_location: tuple, next_stop: str, progress_percent: float): tuple
+        + get_coordinates_for_stop(stop_name: str): tuple
+        + send_udp_beacon(vehicle_id: str, vehicle_type: str, status: str, location: dict, next_stop: str, eta: int): void
+    }
+
+    class Config {
+        + TCP_SERVER_HOST: str
+        + TCP_SERVER_PORT: int
+        + UDP_SERVER_PORT: int
+        + BUFFER_SIZE: int
+        + BUS_ROUTE: list
+        + TRAIN_ROUTE: list
+        + SHUTTLE_ROUTE: list
+        + UBER_START: str
+        + UBER_END: str
+    }
+
+    interface Subject {
+        + register_observer(observer: Observer): void
+        + remove_observer(observer: Observer): void
+        + notify_observers(event: str, data: str): void
+    }
+
+    interface Observer {
+        + update(subject: Subject, event: str, data: str): void
+    }
+
+    interface CommandExecutor {
+        + execute(command: str, params: dict): void
+    }
+}
+
+' Relationships
+TransportServer --> CommandHandler
+TransportServer --> LogObserver
+TransportServer --> Logger
+TransportServer --> Utils
+
+Vehicle <|-- RouteVehicle
+Vehicle <|-- PointToPointVehicle
+RouteVehicle <|-- BusClient
+RouteVehicle <|-- TrainClient
+RouteVehicle <|-- ShuttleClient
+PointToPointVehicle <|-- UberClient
+
+Logger --> Utils
+Utils --> Config
+Subject <|.. Observer
+Vehicle <|.. CommandExecutor
+@enduml

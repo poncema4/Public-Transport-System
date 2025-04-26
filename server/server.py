@@ -43,13 +43,11 @@ class TransportServer(Subject):
         self.log_observer = LogObserver(self.logger)
         self.register_observer(self.log_observer)
 
-        # Initialize SQLite database
         self.db_lock = threading.Lock()
         self.init_database()
         self.init_routes()
 
     def init_database(self):
-        """Initialize the main SQLite database."""
         with self.db_lock:
             conn = sqlite3.connect("transport_system.db")
             cursor = conn.cursor()
@@ -121,7 +119,6 @@ class TransportServer(Subject):
             conn = sqlite3.connect("transport_system.db")
             cursor = conn.cursor()
 
-            # Predefined routes
             routes = [
                 ("BUS_ROUTE", "Port Authority Terminal", "Wall Street", "Port Authority Terminal,Times Square,Flatiron,Union Square,Wall Street"),
                 ("TRAIN_ROUTE", "Queens Plaza", "Middle Village", "Queens Plaza,Herald Square,Delancey St,Middle Village"),
@@ -129,7 +126,6 @@ class TransportServer(Subject):
                 ("UBER_ROUTE", "Washington Square", "Columbia University", "Washington Square,Greenwich Village,Union Square,Near Flatiron,Near Bryant Park,Midtown,Columbus Circle,Upper West Side,Near Columbia University")
             ]
 
-            # Insert routes into the database
             cursor.executemany("""
                 INSERT OR IGNORE INTO routes (route_id, origin, destination, stop_sequence)
                 VALUES (?, ?, ?, ?)
@@ -139,7 +135,7 @@ class TransportServer(Subject):
             conn.close()
 
     def log_admin_command(self, vehicle_id, command_type, parameters, status):
-        """Log an admin command to the database."""
+        """Log an admin command to the database"""
         with self.db_lock:
             conn = sqlite3.connect("transport_system.db")
             cursor = conn.cursor()
@@ -151,7 +147,7 @@ class TransportServer(Subject):
             conn.close()
 
     def log_location_update(self, vehicle_id, latitude, longitude, speed, network_status):
-        """Log a location update to the database."""
+        """Log a location update to the database"""
         with self.db_lock:
             conn = sqlite3.connect("transport_system.db")
             cursor = conn.cursor()
@@ -163,7 +159,7 @@ class TransportServer(Subject):
             conn.close()
 
     def log_event(self, vehicle_id, event_type, details):
-        """Log specific events to the database."""
+        """Log specific events to the database"""
         with self.db_lock:
             conn = sqlite3.connect("transport_system.db")
             cursor = conn.cursor()
@@ -175,7 +171,7 @@ class TransportServer(Subject):
             conn.close()
 
     def update_vehicle_status(self, vehicle_id, status, last_seen):
-        """Update vehicle status in the database."""
+        """Update vehicle status in the database"""
         with self.db_lock:
             conn = sqlite3.connect("transport_system.db")
             cursor = conn.cursor()
@@ -190,25 +186,21 @@ class TransportServer(Subject):
         print(f"[{get_current_time_string()}] SERVER STARTED at Bryant Park Control Center")
         print(f"[{get_current_time_string()}] Admin Logs are being saved to transport_system.db")
         
-        # Start TCP server for reliable communication
         self.tcp_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tcp_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.tcp_server.bind((TCP_SERVER_HOST, TCP_SERVER_PORT))
         self.tcp_server.listen(10)
-        
-        # Start UDP server for location updates
+
         self.udp_server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.udp_server.bind((TCP_SERVER_HOST, UDP_SERVER_PORT))
-        
-        # Start threads for handling connections
+
         tcp_thread = threading.Thread(target=self.handle_tcp_connections)
         udp_thread = threading.Thread(target=self.handle_udp_messages)
-        command_thread = threading.Thread(target=self.handle_admin_commands)  # Admin commands in a separate thread
-        
+        command_thread = threading.Thread(target=self.handle_admin_commands)
         tcp_thread.daemon = True
         udp_thread.daemon = True
-        command_thread.daemon = True  # Ensure the thread stops when the main program exits
+        command_thread.daemon = True
         
         tcp_thread.start()
         udp_thread.start()
@@ -236,7 +228,6 @@ class TransportServer(Subject):
                 
     def handle_client(self, client_socket, addr):
         try:
-            # Wait for registration message
             data = client_socket.recv(BUFFER_SIZE)
             if data:
                 message = json.loads(data.decode())
@@ -250,11 +241,8 @@ class TransportServer(Subject):
 
                     self.logger.log(f"Vehicle CONNECTED: {vehicle_id} ({vehicle_type}) via TCP")
                     self.notify_observers("VEHICLE_CONNECTED", f"{vehicle_id} ({vehicle_type})")
-
-                    # Log connection event in the event_logs table
                     self.log_event(vehicle_id, "VEHICLE_CONNECTED", f"{vehicle_id} ({vehicle_type}) connected")
 
-                    # Continue handling messages from this client
                     while self.running:
                         try:
                             data = client_socket.recv(BUFFER_SIZE)
@@ -267,7 +255,6 @@ class TransportServer(Subject):
                             self.logger.log(f"Error receiving message from {vehicle_id}: {e}")
                             break
 
-                    # Client disconnected or error occurred
                     with self.lock:
                         if vehicle_id in self.vehicle_registry:
                             del self.vehicle_registry[vehicle_id]
@@ -277,7 +264,6 @@ class TransportServer(Subject):
                     self.logger.log(f"Vehicle DISCONNECTED: {vehicle_id}")
                     self.notify_observers("VEHICLE_DISCONNECTED", vehicle_id)
 
-                    # Log disconnection event in the event_logs table
                     self.log_event(vehicle_id, "VEHICLE_DISCONNECTED", f"{vehicle_id} disconnected")
 
         except Exception as e:
@@ -293,24 +279,15 @@ class TransportServer(Subject):
             network_status = message.get("network_status", "Unknown")
             status = message["status"]
 
-            # Calculate speed dynamically
-            vehicle_type = self.vehicle_types.get(vehicle_id, "Unknown")
-            progress = message.get("progress", 0.0)  # Progress towards destination (0-100)
-            speed = self.calculate_speed(vehicle_type, progress)
+            self.log_location_update(vehicle_id, lat, long, 0.0, network_status)
 
-            # Log location update in the location_updates table
-            self.log_location_update(vehicle_id, lat, long, speed, network_status)
-
-            # Update vehicle status
             self.update_vehicle_status(vehicle_id, status, get_current_time_string())
 
         elif message_type == MessageType.COMMAND_REJECTED:
-            # Log command rejection in the event_logs table
             reason = message.get("reason", "Unknown reason")
             self.log_event(vehicle_id, "COMMAND_FAILURE", reason)
 
         elif message_type == MessageType.COMMAND_ACK:
-            # Handle command acknowledgment (no logging needed here)
             pass
             
     def calculate_speed(self, vehicle_type, progress):
@@ -319,22 +296,21 @@ class TransportServer(Subject):
         Vehicles slow down as they approach their destination.
         """
         if vehicle_type == "Bus":
-            max_speed = 30  # km/h
-            min_speed = 10  # km/h
+            max_speed = 30
+            min_speed = 10
         elif vehicle_type == "Train":
-            max_speed = 80  # km/h
-            min_speed = 40  # km/h
+            max_speed = 80
+            min_speed = 40
         elif vehicle_type == "Shuttle":
-            max_speed = 50  # km/h
-            min_speed = 20  # km/h
+            max_speed = 50
+            min_speed = 20
         elif vehicle_type == "Uber":
-            max_speed = 25  # km/h
-            min_speed = 5   # km/h
+            max_speed = 25
+            min_speed = 5
         else:
-            max_speed = 20  # Default max speed
-            min_speed = 5   # Default min speed
+            max_speed = 20
+            min_speed = 5
 
-        # Speed decreases as progress approaches 100%
         speed = max_speed - ((max_speed - min_speed) * (progress / 100))
         return round(speed, 2)
 
@@ -349,8 +325,7 @@ class TransportServer(Subject):
                     vehicle_type = message["vehicle_type"]
                     location = message["location"]
                     status = message["status"]
-                    
-                    # Log formatted message based on vehicle type
+
                     log_entry = f"[UDP] {vehicle_id} -> Real-Time Location Update:"
                     log_details = f"Lat: {location['lat']:.4f} | Long: {location['long']:.4f}"
                     
@@ -384,7 +359,6 @@ class TransportServer(Subject):
                         self.logger.log(f"Parameters: {params}")
                     self.notify_observers("COMMAND_SENT", f"{command_type} to {vehicle_id}")
 
-                    # Log the command
                     self.log_admin_command(vehicle_id, command_type, params, "SENT")
                     return True
                 except Exception as e:
@@ -412,7 +386,7 @@ class TransportServer(Subject):
                 
                 if not parts:
                     continue
-                    
+                 
                 if parts[0].upper() == "EXIT":
                     print("Shutting down server...")
                     self.logger.log("Server shutdown initiated by admin", also_print=True)

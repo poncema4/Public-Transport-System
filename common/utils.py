@@ -9,10 +9,8 @@ import random
 import socket
 from common.config import ROUTE_COORDS, MessageType, UDP_SERVER_PORT, TCP_SERVER_HOST
 
-# Logging functionality
 class Logger:
     def __init__(self, name, is_server=False):
-        # Create logs directory in the project root if it doesn't exist
         logs_dir = os.path.join(project_root, "logs")
         if not os.path.exists(logs_dir):
             os.makedirs(logs_dir)
@@ -21,7 +19,6 @@ class Logger:
         self.is_server = is_server
         self.log_file = os.path.join(logs_dir, f"{name}.txt")
         
-        # Create or clear the log file
         with open(self.log_file, 'w') as f:
             timestamp = get_current_time_string()
             if is_server:
@@ -33,20 +30,16 @@ class Logger:
         timestamp = get_current_time_string()
         log_entry = f"[{timestamp}] {message}\n"
         
-        # Write to log file
         with open(self.log_file, 'a') as f:
             f.write(log_entry)
-            
-        # Optionally print to console as well
+
         if also_print:
             print(f"[{timestamp}] {message}")
             
-# Helper functions
 def get_current_time_string():
     return datetime.datetime.now().strftime("%H:%M:%S")
 
 def get_formatted_coords():
-    # Generate random coordinates in NYC area (Manhattan)
     lat = random.uniform(40.7, 40.8)
     long = random.uniform(-74.0, -73.9)
     return lat, long
@@ -63,23 +56,18 @@ def calculate_realistic_movement(current_location, next_stop, progress_percent=N
     Returns:
         Tuple (lat, long) of new coordinates
     """
-    # If no progress specified, move 5-15% towards destination
     if progress_percent is None:
         progress_percent = random.uniform(5, 15)
     
-    # Ensure progress is between 0 and 100
     progress_percent = max(0, min(100, progress_percent))
     progress_ratio = progress_percent / 100.0
     
-    # Get destination coordinates
     if next_stop in ROUTE_COORDS:
         dest_lat, dest_long = ROUTE_COORDS[next_stop]
     else:
-        # If next stop not found, use default NYC coordinates with small jitter
         dest_lat = current_location[0] + random.uniform(0.001, 0.003)
         dest_long = current_location[1] + random.uniform(0.001, 0.003)
     
-    # Calculate linear interpolation with small random jitter (simulates lane changes, etc.)
     jitter_lat = random.uniform(-0.0005, 0.0005)
     jitter_long = random.uniform(-0.0005, 0.0005)
     
@@ -93,8 +81,7 @@ def get_coordinates_for_stop(stop_name):
     if stop_name in ROUTE_COORDS:
         return ROUTE_COORDS[stop_name]
     else:
-        # Return default NYC coordinates
-        return (40.7580, -73.9855)  # Times Square as fallback
+        return (40.7580, -73.9855)
 
 def send_udp_beacon(vehicle_id, vehicle_type, status, location, next_stop=None, eta=None):
     message = {
@@ -117,7 +104,7 @@ def send_udp_beacon(vehicle_id, vehicle_type, status, location, next_stop=None, 
         sock.sendto(json.dumps(message).encode(), (TCP_SERVER_HOST, UDP_SERVER_PORT))
     except Exception as e:
         log_error = f"Error sending UDP beacon: {e}"
-        print(log_error)  # Still print errors to console
+        print(log_error)
     finally:
         sock.close()
 

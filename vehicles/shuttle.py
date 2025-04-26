@@ -26,7 +26,6 @@ class ShuttleClient(RouteVehicle, CommandExecutor):
             if not self.running:
                 break
 
-            # Update location dynamically
             self.location = calculate_realistic_movement(
                 get_coordinates_for_stop(self._route[self._current_stop_index]),
                 get_coordinates_for_stop(self._next_stop),
@@ -34,13 +33,11 @@ class ShuttleClient(RouteVehicle, CommandExecutor):
             )
             lat, long = self.location
             now = datetime.datetime.now().strftime("%H:%M")
-            network_status = Status.ACTIVE if now >= "08:00" else Status.STANDBY  # Shuttle status based on time
-            speed = random.uniform(20, 50)  # Simulate speed in km/h
+            network_status = Status.ACTIVE if now >= "08:00" else Status.STANDBY
+            speed = random.uniform(20, 50)
 
-            # Send real-time update to the server
             self.send_status_update()
 
-            # Log location update locally
             self.log_location_update(lat, long, network_status, speed)
             time.sleep(pause)
         return last_tcp_timestamp
@@ -175,7 +172,6 @@ class ShuttleClient(RouteVehicle, CommandExecutor):
             self.logger.log(f"Shuttle delayed for {duration} seconds")
             
 if __name__ == "__main__":
-    # Check if a vehicle ID was provided
     vehicle_id = None
     if len(sys.argv) > 1:
         vehicle_id = sys.argv[1]

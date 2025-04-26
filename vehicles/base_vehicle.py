@@ -25,28 +25,21 @@ class Vehicle(Subject, ABC):
         self.location = get_formatted_coords()
         self.logger = Logger(vehicle_id)
         self.server_shutdown_detected = False
-        # Initialize SQL Database
         self.db_lock = threading.Lock()
         self.init_database()
 
     def simulate_movement(self):
         last_tcp: float  = 0.0
         while self.running and self._check_connection():
-            # 1) Handle delay logic. If delayed, skip this iteration.
             if self._handle_delay(): continue
-            # 2) Hook for any pre-loop logic
             self._pre_step()
-            # 3) Do one movement step
             last_tcp = self._movement_step(last_tcp)
-            # 4) Cleanup after each loop
             self._post_step()
 
     #region Shared Utilities
     def _check_connection(self) -> bool:
-        # If everything is fine, return True
         if not self.server_shutdown_detected and self.tcp_socket:
             return True
-        # Else log and return False
         self.logger.log(
             "Lost connection to server and reconnection failed. Shutting down.",
             also_print=True
@@ -58,11 +51,10 @@ class Vehicle(Subject, ABC):
         is_delayed: bool = getattr(self, "is_delayed", False)
         delay_until: float = getattr(self, "delay_until", 0.0)
 
-        # If delayed, wait for delay period to end
         if is_delayed and now < delay_until:
             time.sleep(1)
-            return True  # skip the rest of this loop
-        # If delayed but delay period is over, resume normal operation
+            return True
+        
         if is_delayed:
             self.is_delayed = False
             self.logger.log("Delay period over, resuming normal operation")

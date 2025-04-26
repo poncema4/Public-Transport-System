@@ -112,7 +112,6 @@ class UberClient(PointToPointVehicle, CommandExecutor):
         pass
         
 if __name__ == "__main__":
-    # Check if a vehicle ID was provided
     vehicle_id = None
     if len(sys.argv) > 1:
         vehicle_id = sys.argv[1]

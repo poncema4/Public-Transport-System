@@ -19,7 +19,7 @@ class BusClient(RouteVehicle, CommandExecutor):
         self.location = get_coordinates_for_stop(self._route[self._current_stop_index])
 
     def _movement_step(self, last_tcp_timestamp: float) -> float:
-        """Simulate movement and log location updates."""
+        """Simulate movement and log location updates"""
         for progress, pause in self._progress_generator(self._route[self._current_stop_index], self._next_stop):
             if not self.running:
                 break
@@ -31,13 +31,11 @@ class BusClient(RouteVehicle, CommandExecutor):
                 progress
             )
             lat, long = self.location
-            network_status = Status.ON_TIME  # Bus is always "On Time"
-            speed = random.uniform(10, 30)  # Simulate speed in km/h
+            network_status = Status.ON_TIME
+            speed = random.uniform(10, 30)
 
-            # Send real-time update to the server
             self.send_status_update()
 
-            # Log location update locally
             self.log_location_update(lat, long, network_status, speed)
             time.sleep(pause)
         return last_tcp_timestamp
@@ -109,7 +107,6 @@ class BusClient(RouteVehicle, CommandExecutor):
             self.logger.log(f"Bus delayed for {duration} seconds")
             
         elif command == Command.REROUTE:
-            # Simulate rerouting by shuffling stops (except first and last)
             if len(self._route) > 3:
                 middle_stops = self._route[1:-1]
                 random.shuffle(middle_stops)
@@ -122,7 +119,6 @@ class BusClient(RouteVehicle, CommandExecutor):
             self.logger.log(f"Received shutdown command")
             
 if __name__ == "__main__":
-    # Check if a vehicle ID was provided
     vehicle_id = None
     if len(sys.argv) > 1:
         vehicle_id = sys.argv[1]

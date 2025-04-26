@@ -33,13 +33,11 @@ class TrainClient(RouteVehicle, CommandExecutor):
                 progress
             )
             lat, long = self.location
-            network_status = Status.ON_TIME  # Train is always "On Time"
-            speed = random.uniform(40, 80)  # Simulate speed in km/h
+            network_status = Status.ON_TIME
+            speed = random.uniform(40, 80)
 
-            # Send real-time update to the server
             self.send_status_update()
 
-            # Log location update locally
             self.log_location_update(lat, long, network_status, speed)
             time.sleep(pause)
         return last_tcp_timestamp
@@ -143,7 +141,6 @@ class TrainClient(RouteVehicle, CommandExecutor):
                 self.logger.log(f"Train resuming route")
 
 if __name__ == "__main__":
-    # Check if a vehicle ID was provided
     vehicle_id = None
     if len(sys.argv) > 1:
         vehicle_id = sys.argv[1]

@@ -1,6 +1,6 @@
 # Observer pattern
 class Observer:
-    def update(self, subject, *args, **kwargs):
+    def update(self, *args, **kwargs):
         pass
 
 class Subject:

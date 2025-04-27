@@ -5,7 +5,7 @@ import time
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
-from base_vehicle import Vehicle
+from vehicles.base_vehicle import Vehicle
 from abc import ABC, abstractmethod
 from common.config import Status
 from common.utils import get_coordinates_for_stop

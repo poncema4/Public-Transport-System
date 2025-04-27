@@ -20,19 +20,25 @@ The Public Transport System simulates a transportation network with real-time lo
    ```
 
 2. Install dependencies:
-    + pip install -r requirements.txt
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-3. Start the server:
-    + python server/server.py
+4. Start the server:
+   ```bash
+    python server/server.py
+   ```
 
-4. Start the vehicle client (e.g., Bus):
-    + python vehicles/bus.py
+6. Start the vehicle client (e.g., Bus):
+   ```bash
+    python vehicles/bus.py
+   ```
 
-5. Repeat step 4 for other vehicle types (e.g. train.py, shuttle.py, uber.py).
+8. Repeat step 4 for other vehicle types (e.g. train.py, shuttle.py, uber.py).
 
-6. Use the admin console in the server to issue commands or monitor the system.
+9. Use the admin console in the server to issue commands or monitor the system.
 
-7. Use sqlite3.exe in the cloned repository to be able to see your databases and tables
+10. Use sqlite3.exe in the cloned repository to be able to see your databases and tables
 
 ---
 

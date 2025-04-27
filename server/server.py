@@ -270,7 +270,7 @@ class TransportServer(Subject):
             conn.commit()
             conn.close()
 
-    def update_vehicle_status(self, vehicle_id: str, status: str, last_seen: float) -> None:
+    def update_vehicle_status(self, vehicle_id: str, status: str, last_seen: str) -> None:
        """
        Update vehicle status in the database.
        :param vehicle_id: The vehicle ID.
